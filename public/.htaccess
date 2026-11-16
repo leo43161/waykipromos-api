@@ -1,0 +1,31 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # MCP fuera del alcance del ZIP: bloqueo preventivo hasta autenticar transporte.
+    RewriteRule ^mcp(?:/|$) - [F,L,NC]
+
+    # Prevenir bucles de reescritura interna
+    RewriteCond %{ENV:REDIRECT_STATUS} 200
+    RewriteRule ^ - [L]
+
+    # Redirigir todas las peticiones que no correspondan a archivos existentes a index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Seguridad básica: Bloquear acceso a archivos sensibles (.env, .git, etc.)
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+
+<FilesMatch "^(diag\.php|test-php\.php)$">
+  Require all denied
+</FilesMatch>

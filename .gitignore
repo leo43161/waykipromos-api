@@ -1,0 +1,7 @@
+/vendor
+/storage/cache
+.env
+app.log
+.phpunit.result.cache
+.DS_Store
+*.zip
