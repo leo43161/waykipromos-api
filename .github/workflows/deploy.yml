@@ -52,9 +52,4 @@ jobs:
       # descomprimir.php extrae el ZIP en public_html/waykipromo/api/ y lo borra.
       # El secreto va en una cabecera (no en la URL, que queda en los logs del servidor).
       - name: Trigger unzip on server
-        env:
-          UNZIP_SECRET: ${{ secrets.WAYKI_UNZIP_SECRET }}
-        run: >
-          curl --fail-with-body -sS -X POST
-          -H "X-Deploy-Secret: $UNZIP_SECRET"
-          "https://tucumanturismo.gob.ar/waykipromo/api/descomprimir.php"
+        run: curl --fail "https://tucumanturismo.gob.ar/waykipromo/api/descomprimir.php?secret=${{ secrets.UNZIP_SECRET }}"
