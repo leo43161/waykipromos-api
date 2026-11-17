@@ -1,0 +1,9 @@
+# Todo lo que no sea un archivo real va a index.php (el router).
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [L]
+
+# Restos del deploy que no tienen que poder descargarse (el ZIP trae el código fuente).
+<FilesMatch "^(deploy\.zip|\.ftp-deploy-sync-state\.json)$">
+    Require all denied
+</FilesMatch>

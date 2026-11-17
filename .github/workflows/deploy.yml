@@ -1,0 +1,60 @@
+name: Deploy Wayki Promo · API a cPanel
+
+# Publica la carpeta public/ en public_html/waykipromo/api/  →  https://tucumanturismo.gob.ar/waykipromo/api/
+# Configuración única (servidor y secrets): ver README.md de este repo.
+#
+# Secrets del repo (Settings → Secrets and variables → Actions → Secrets):
+#   CPANEL_SERVER, CPANEL_USERNAME, CPANEL_PASSWORD  → los mismos del repo turista
+#   WAYKI_UNZIP_SECRET                               → el mismo valor que SECRETO en el descomprimir.php del servidor
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # ejecución manual desde la pestaña Actions
+
+concurrency:
+  # Una sola ejecución por rama; si llega un push nuevo, cancela la anterior.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ubuntu-latest ya trae PHP. Un error de sintaxis frena el deploy antes de romper producción.
+      - name: Check PHP syntax
+        run: find public -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      # El ZIP lleva solo el contenido de public/ (incluye .htaccess). deploy/descomprimir.php NO va:
+      # vive en el servidor con el secreto real y el ZIP lo pisaría.
+      - name: Compress API
+        run: |
+          mkdir upload_dir
+          cd public
+          zip -qr ../upload_dir/deploy.zip .
+
+      # Igual que turista: el usuario FTP arranca en public_html/waykipromo/, así que /api/ = public_html/waykipromo/api/.
+      - name: Upload ZIP to cPanel
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.CPANEL_SERVER }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 21
+          local-dir: ./upload_dir/
+          server-dir: /api/
+
+      # descomprimir.php extrae el ZIP en public_html/waykipromo/api/ y lo borra.
+      # El secreto va en una cabecera (no en la URL, que queda en los logs del servidor).
+      - name: Trigger unzip on server
+        env:
+          UNZIP_SECRET: ${{ secrets.WAYKI_UNZIP_SECRET }}
+        run: >
+          curl --fail-with-body -sS -X POST
+          -H "X-Deploy-Secret: $UNZIP_SECRET"
+          "https://tucumanturismo.gob.ar/waykipromo/api/descomprimir.php"
