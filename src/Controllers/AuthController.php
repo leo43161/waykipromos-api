@@ -39,28 +39,52 @@ class AuthController
 
         $googleSub = (string) $googleProfile['sub'];
         $email     = (string) ($googleProfile['email'] ?? '');
-        $nombre    = (string) ($googleProfile['name'] ?? $googleProfile['given_name'] ?? 'Turista');
+        $nombre    = (string) ($googleProfile['given_name'] ?? $googleProfile['name'] ?? 'Turista');
         $apellido  = (string) ($googleProfile['family_name'] ?? '');
+        $nombreCompleto = (string) ($googleProfile['name'] ?? trim($nombre . ' ' . $apellido));
         $fotoUrl   = (string) ($googleProfile['picture'] ?? '');
 
         // 1. Buscar o crear turista en la base huakipromo
         $turista = $this->sp->callSingle('sp_turistas_obtener_por_google_sub', [$googleSub]);
 
+        $ahora = date('Y-m-d H:i:s');
+
         if ($turista === null) {
-            // Alta de nuevo turista
+            // Alta de nuevo turista (sp_turistas_crear recibe 9 parámetros IN + 1 OUT)
             $nuevoId = $this->sp->callWithOut('sp_turistas_crear', [
                 $googleSub,
                 $email,
                 1, // email_verified
-                $nombre . ($apellido !== '' ? ' ' . $apellido : ''),
+                $nombreCompleto,
                 $fotoUrl,
                 $nombre,
                 $apellido,
+                $ahora, // p_creado_en
+                $ahora, // p_ultimo_acceso
             ]);
 
             $turistaId = (int) $nuevoId;
         } else {
             $turistaId = (int) ($turista['turistas_id'] ?? $turista['id']);
+
+            // Actualizar último acceso del turista recurrente
+            try {
+                $this->sp->call('sp_turistas_actualizar', [
+                    $turistaId,
+                    $googleSub,
+                    $email,
+                    1, // email_verified
+                    $nombreCompleto,
+                    $fotoUrl,
+                    $nombre,
+                    $apellido,
+                    $ahora, // p_ultimo_acceso
+                    1,      // p_activo
+                    0,      // p_borrado
+                ]);
+            } catch (\Throwable $e) {
+                error_log('[AuthController] Advertencia al actualizar último acceso del turista: ' . $e->getMessage());
+            }
         }
 
         // 2. Generar token JWT para la sesión del turista
