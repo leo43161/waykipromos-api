@@ -2,26 +2,24 @@
 
 declare(strict_types=1);
 
-// Cabeceras CORS universales a nivel de runtime
-$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-$allowedOrigins = array_filter(array_map('trim', explode(',', (string) (getenv('CORS_ALLOWED_ORIGINS') ?: getenv('ALLOWED_ORIGINS') ?: 'https://waykipromo.tucumanturismo.gob.ar,http://localhost:3000,http://localhost:4321,http://localhost:5173'))));
-$originAllowed = in_array($origin, $allowedOrigins, true) || in_array('*', $allowedOrigins, true);
-$activeOrigin = $originAllowed ? $origin : '';
+// Cabeceras CORS universales sin restricciones por el momento
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+$activeOrigin = $origin !== '' ? $origin : '*';
 
 if (!headers_sent()) {
-    if ($activeOrigin !== '') {
-        header("Access-Control-Allow-Origin: {$activeOrigin}");
+    header("Access-Control-Allow-Origin: {$activeOrigin}");
+    if ($activeOrigin !== '*') {
+        header('Access-Control-Allow-Credentials: true');
         header('Vary: Origin');
     }
-    header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-API-Key, X-Requested-With');
-    header('Access-Control-Max-Age: 600');
-    header('Access-Control-Allow-Credentials: true');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+    header('Access-Control-Allow-Headers: *');
+    header('Access-Control-Max-Age: 86400');
 }
 
 // Responder inmediatamente a peticiones preflight OPTIONS
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
-    http_response_code($originAllowed ? 204 : 403);
+    http_response_code(204);
     exit;
 }
 

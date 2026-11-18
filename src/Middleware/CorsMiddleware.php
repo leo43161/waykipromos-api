@@ -14,28 +14,23 @@ class CorsMiddleware implements MiddlewareInterface
 {
     public function process(Request $request, RequestHandlerInterface $handler): Response
     {
-        $allowedOrigins = array_filter(array_map('trim', explode(',', (string) Env::get(
-            'CORS_ALLOWED_ORIGINS',
-            Env::get('ALLOWED_ORIGINS', 'https://waykipromo.tucumanturismo.gob.ar,http://localhost:3000,http://localhost:4321,http://localhost:5173')
-        ))));
-
-        $origin = $request->getHeader('origin');
-        $isAllowed = $origin !== null && (in_array($origin, $allowedOrigins, true) || in_array('*', $allowedOrigins, true));
+        // Sin restricciones: refleja el origen entrante o permite wildcard
+        $origin = $request->getHeader('origin') ?? '*';
 
         $headers = [
-            'Vary' => 'Origin',
+            'Access-Control-Allow-Origin'  => $origin,
+            'Access-Control-Allow-Methods' => 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD',
+            'Access-Control-Allow-Headers' => '*',
+            'Access-Control-Max-Age'       => '86400',
         ];
 
-        if ($isAllowed) {
-            $headers['Access-Control-Allow-Origin'] = $origin;
-            $headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
-            $headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-API-Key, X-Requested-With';
-            $headers['Access-Control-Max-Age'] = '600';
+        if ($origin !== '*') {
             $headers['Access-Control-Allow-Credentials'] = 'true';
+            $headers['Vary'] = 'Origin';
         }
 
         if ($request->getMethod() === 'OPTIONS') {
-            return Response::empty($isAllowed ? 204 : 403, $headers);
+            return Response::empty(204, $headers);
         }
 
         $response = $handler->handle($request);
