@@ -59,4 +59,9 @@ jobs:
           server-dir: /api/
 
       - name: Trigger unzip on server
-        run: curl --fail "https://tucumanturismo.gob.ar/waykipromo/api/descomprimir.php?secret=${{ secrets.UNZIP_SECRET }}"
+        env:
+          UNZIP_SECRET: ${{ secrets.WAYKI_UNZIP_SECRET || secrets.UNZIP_SECRET }}
+        run: >
+          curl --fail-with-body -sS -X POST
+          -H "X-Deploy-Secret: $UNZIP_SECRET"
+          "https://tucumanturismo.gob.ar/waykipromo/api/descomprimir.php?secret=$UNZIP_SECRET"
