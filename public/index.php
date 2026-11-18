@@ -90,9 +90,27 @@ use App\Middleware\FileLoggerMiddleware;
 use App\Routes\ApiRoutes;
 
 try {
-    // 1. Cargar variables de entorno desde .env (__DIR__ para cPanel desplegado, $projectRoot para desarrollo)
-    Env::load(__DIR__ . '/.env');
-    Env::load($projectRoot . '/.env');
+    // 1. Cargar variables de entorno buscando en ubicaciones seguras (Alternativa A: fuera de public_html)
+    // En cPanel: __DIR__ es /home/<user>/public_html/waykipromo/api
+    // dirname(__DIR__, 3) es /home/<user>/ (fuera de public_html, 100% blindado contra acceso web)
+    $cpanelHome = dirname(__DIR__, 3);
+    $envCandidates = [
+        $cpanelHome . '/.env.waykipromo',
+        $cpanelHome . '/.env',
+        dirname(__DIR__, 2) . '/.env.waykipromo',
+        dirname(__DIR__, 2) . '/.env',
+        dirname(__DIR__, 1) . '/.env.waykipromo',
+        dirname(__DIR__, 1) . '/.env',
+        $projectRoot . '/.env',
+        __DIR__ . '/.env',
+    ];
+
+    foreach ($envCandidates as $candidate) {
+        if (file_exists($candidate)) {
+            Env::load($candidate);
+            break;
+        }
+    }
 
     // 2. Inicializar Contenedor DI
     $container = new Container();
