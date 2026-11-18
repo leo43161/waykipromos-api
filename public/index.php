@@ -92,9 +92,7 @@ use App\Middleware\FileLoggerMiddleware;
 use App\Routes\ApiRoutes;
 
 try {
-    // 1. Cargar configuración dual: config.php (cPanel) o .env (desarrollo local)
-    Env::loadConfigPhp(__DIR__ . '/config.php');
-    Env::loadConfigPhp($projectRoot . '/config.php');
+    // 1. Cargar variables de entorno desde .env
     Env::load($projectRoot . '/.env');
     Env::load(__DIR__ . '/.env');
 

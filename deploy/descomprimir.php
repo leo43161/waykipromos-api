@@ -26,7 +26,7 @@ if (!is_file($zipRuta)) fin(404, 'No está el ZIP');
 $zip = new ZipArchive();
 if ($zip->open($zipRuta) !== true) fin(500, 'ZIP inválido');
 $total = $zip->numFiles;
-$ok = $zip->extractTo(__DIR__); // pisa archivos existentes; no borra los viejos (ni el config.php del servidor)
+$ok = $zip->extractTo(__DIR__); // pisa archivos existentes; no borra los preexistentes (como el archivo .env del servidor)
 $zip->close();
 if (!$ok) fin(500, 'Falló la descompresión');
 
