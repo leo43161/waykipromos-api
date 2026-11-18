@@ -20,6 +20,11 @@ class Router implements RequestHandlerInterface
     /** @var list<array{method: string, path: string, pattern: string, params: list<string>, handler: callable|array|string, middlewares: list<mixed>}> */
     protected array $routes = [];
 
+    protected string $currentPrefix = '';
+
+    /** @var list<mixed> */
+    protected array $groupMiddlewares = [];
+
     public function __construct(
         protected Container $container = new Container()
     ) {}
@@ -27,6 +32,31 @@ class Router implements RequestHandlerInterface
     public function getContainer(): Container
     {
         return $this->container;
+    }
+
+    /**
+     * Groups routes under a common URI prefix and optional middlewares.
+     *
+     * @param string $prefix
+     * @param callable $callback
+     * @param array $middlewares
+     * @return self
+     */
+    public function group(string $prefix, callable $callback, array $middlewares = []): self
+    {
+        $previousPrefix = $this->currentPrefix;
+        $previousMiddlewares = $this->groupMiddlewares;
+
+        $prefix = '/' . trim($prefix, '/');
+        $this->currentPrefix = $previousPrefix !== '' ? rtrim($previousPrefix, '/') . $prefix : $prefix;
+        $this->groupMiddlewares = array_merge($previousMiddlewares, $middlewares);
+
+        $callback($this);
+
+        $this->currentPrefix = $previousPrefix;
+        $this->groupMiddlewares = $previousMiddlewares;
+
+        return $this;
     }
 
     /**
@@ -81,21 +111,32 @@ class Router implements RequestHandlerInterface
      */
     public function addRoute(string $method, string $path, $handler, array $middlewares = []): self
     {
+        $fullPath = $path;
+        if ($this->currentPrefix !== '') {
+            $trimmedPath = trim($path, '/');
+            $fullPath = $this->currentPrefix . ($trimmedPath !== '' ? '/' . $trimmedPath : '');
+            if ($fullPath === '') {
+                $fullPath = '/';
+            }
+        }
+
+        $allMiddlewares = array_merge($this->groupMiddlewares, $middlewares);
+
         $params = [];
         $pattern = preg_replace_callback('/:([a-zA-Z0-9_]+)/', function ($matches) use (&$params) {
             $params[] = $matches[1];
             return '(?P<' . $matches[1] . '>[^/]+)';
-        }, $path);
+        }, $fullPath);
 
         $pattern = '#^' . $pattern . '$#';
 
         $this->routes[] = [
             'method'      => strtoupper($method),
-            'path'        => $path,
+            'path'        => $fullPath,
             'pattern'     => $pattern,
             'params'      => $params,
             'handler'     => $handler,
-            'middlewares' => $middlewares,
+            'middlewares' => $allMiddlewares,
         ];
 
         return $this;

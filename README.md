@@ -63,6 +63,12 @@ api-waykipromo/
 │   │   ├── FileLoggerMiddleware.php
 │   │   ├── JwtAuthMiddleware.php
 │   │   └── RoleMiddleware.php
+│   ├── Routes/                 # Módulos de rutas desacoplados por dominio
+│   │   ├── AdminRoutes.php     # Rutas de fiscalización y analítica del Ente
+│   │   ├── ApiRoutes.php       # Orquestador general y prefijos /api/v1 y /v1
+│   │   ├── AuthRoutes.php      # Rutas de autenticación Google y credenciales
+│   │   ├── ComercioRoutes.php  # Rutas de canje en mostrador y gestión comercial
+│   │   └── TuristaRoutes.php   # Rutas de cupones, catálogo y encuestas
 │   └── Services/
 │       ├── GoogleAuthService.php # Verificación de tokens de Google OAuth
 │       └── JwtService.php        # Codificación y decodificación de tokens HS256
@@ -128,3 +134,26 @@ El servicio estará disponible en `http://127.0.0.1:3001` (o puerto configurado 
 ```bash
 composer test
 ```
+
+---
+
+## Cómo agregar un nuevo endpoint a la API
+
+Gracias a la arquitectura modular y al autowiring del contenedor DI, incorporar nuevos endpoints toma solo 2 pasos:
+
+1. **Crear o ampliar el Controlador (`src/Controllers/`)**:
+   Escribir el método recibiendo `Request $request` (y opcionalmente `array $params`) y retornando un `Response`:
+   ```php
+   public function miNuevoMetodo(Request $request): Response
+   {
+       $resultado = $this->sp->call('sp_mi_procedimiento', [...]);
+       return Response::ok($resultado);
+   }
+   ```
+
+2. **Registrar la Ruta en su Módulo Correspondiente (`src/Routes/`)**:
+   Agregar una línea en `TuristaRoutes.php`, `ComercioRoutes.php`, `AdminRoutes.php` o `AuthRoutes.php`:
+   ```php
+   $router->get('/mi-ruta', [MiController::class, 'miNuevoMetodo'], [JwtAuthMiddleware::class]);
+   ```
+   *El sistema la publicará automáticamente bajo `/api/v1/mi-ruta` y `/v1/mi-ruta` con los middlewares aplicados.*

@@ -1,0 +1,62 @@
+name: Deploy Wayki Promo · API a cPanel
+
+# Publica el backend compilado en public_html/waykipromo/api/  →  https://tucumanturismo.gob.ar/waykipromo/api/
+# Secrets del repo (Settings → Secrets and variables → Actions → Secrets):
+#   CPANEL_SERVER, CPANEL_USERNAME, CPANEL_PASSWORD  → credenciales FTP de cPanel
+#   UNZIP_SECRET                                     → el mismo valor que SECRETO en descomprimir.php
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Ejecución manual desde la pestaña Actions
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo, pdo_mysql
+
+      - name: Check PHP syntax
+        run: |
+          find src -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l public/index.php
+
+      - name: Install dependencies (production)
+        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Compress API for cPanel
+        run: |
+          mkdir -p upload_dir dist
+          # Copiar archivos públicos a la raíz del artefacto que se extrae en waykipromo/api/
+          cp -r public/* dist/
+          # Copiar código fuente y autoloader de dependencias
+          cp -r src dist/src
+          cp -r vendor dist/vendor
+          cd dist
+          zip -qr ../upload_dir/deploy.zip .
+
+      - name: Upload ZIP to cPanel
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.CPANEL_SERVER }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 21
+          local-dir: ./upload_dir/
+          server-dir: /api/
+
+      - name: Trigger unzip on server
+        run: curl --fail "https://tucumanturismo.gob.ar/waykipromo/api/descomprimir.php?secret=${{ secrets.UNZIP_SECRET }}"

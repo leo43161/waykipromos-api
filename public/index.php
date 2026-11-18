@@ -51,11 +51,22 @@ register_shutdown_function(function () use ($activeOrigin): void {
     }
 });
 
-// Verificación y carga del autoloader
+// Verificación y carga del autoloader (soporte dual local y cPanel extraído)
 $projectRoot = dirname(__DIR__);
-$autoloadPath = $projectRoot . '/vendor/autoload.php';
+$autoloadCandidates = [
+    __DIR__ . '/vendor/autoload.php',
+    $projectRoot . '/vendor/autoload.php',
+];
 
-if (!file_exists($autoloadPath)) {
+$autoloadPath = null;
+foreach ($autoloadCandidates as $candidate) {
+    if (file_exists($candidate)) {
+        $autoloadPath = $candidate;
+        break;
+    }
+}
+
+if ($autoloadPath === null) {
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
@@ -71,15 +82,6 @@ if (!file_exists($autoloadPath)) {
 require_once $autoloadPath;
 
 use App\Config\Env;
-use App\Controllers\AdminController;
-use App\Controllers\AuthController;
-use App\Controllers\CanjesController;
-use App\Controllers\ComercioPromocionesController;
-use App\Controllers\CuponesController;
-use App\Controllers\EncuestasController;
-use App\Controllers\HealthController;
-use App\Controllers\MaestrosController;
-use App\Controllers\OfertasController;
 use App\Core\Container\Container;
 use App\Core\Http\Request;
 use App\Core\Middleware\Pipeline;
@@ -87,136 +89,23 @@ use App\Core\Router\Router;
 use App\Middleware\CorsMiddleware;
 use App\Middleware\ErrorHandlerMiddleware;
 use App\Middleware\FileLoggerMiddleware;
-use App\Middleware\JwtAuthMiddleware;
+use App\Routes\ApiRoutes;
 
 try {
-    // 1. Cargar variables de entorno
+    // 1. Cargar configuración dual: config.php (cPanel) o .env (desarrollo local)
+    Env::loadConfigPhp(__DIR__ . '/config.php');
+    Env::loadConfigPhp($projectRoot . '/config.php');
     Env::load($projectRoot . '/.env');
+    Env::load(__DIR__ . '/.env');
 
     // 2. Inicializar Contenedor DI
     $container = new Container();
 
-    // 3. Configurar Enrutador
+    // 3. Configurar Enrutador y registrar módulos de rutas
     $router = new Router($container);
+    ApiRoutes::register($router);
 
-    // ==========================================
-    // 1. Healthcheck & Raíz
-    // ==========================================
-    foreach (['/', '/health', '/api', '/api/health', '/v1/health', '/api/v1/health'] as $uri) {
-        $router->get($uri, [HealthController::class, 'check']);
-    }
-
-    // ==========================================
-    // 2. Autenticación y Perfil
-    // ==========================================
-    foreach (['/v1/auth/google', '/api/v1/auth/google'] as $uri) {
-        $router->post($uri, [AuthController::class, 'googleLogin']);
-    }
-    foreach (['/v1/auth/login', '/api/v1/auth/login'] as $uri) {
-        $router->post($uri, [AuthController::class, 'emailLogin']);
-    }
-    foreach (['/v1/auth/perfil', '/api/v1/auth/perfil'] as $uri) {
-        $router->get($uri, [AuthController::class, 'profile'], [JwtAuthMiddleware::class]);
-    }
-    foreach (['/v1/auth/logout', '/api/v1/auth/logout'] as $uri) {
-        $router->post($uri, [AuthController::class, 'logout']);
-    }
-
-    // ==========================================
-    // 3. Catálogos Maestros (Público)
-    // ==========================================
-    foreach (['/v1/categorias', '/api/v1/categorias'] as $uri) {
-        $router->get($uri, [MaestrosController::class, 'categorias']);
-    }
-    foreach (['/v1/circuitos', '/api/v1/circuitos'] as $uri) {
-        $router->get($uri, [MaestrosController::class, 'circuitos']);
-    }
-    foreach (['/v1/modalidades', '/api/v1/modalidades'] as $uri) {
-        $router->get($uri, [MaestrosController::class, 'modalidades']);
-    }
-    foreach (['/v1/localidades', '/api/v1/localidades'] as $uri) {
-        $router->get($uri, [MaestrosController::class, 'localidades']);
-    }
-
-    // ==========================================
-    // 4. Catálogo Público de Ofertas
-    // ==========================================
-    foreach (['/v1/ofertas', '/api/v1/ofertas'] as $uri) {
-        $router->get($uri, [OfertasController::class, 'index']);
-    }
-    foreach (['/v1/ofertas/:id', '/api/v1/ofertas/:id'] as $uri) {
-        $router->get($uri, [OfertasController::class, 'show']);
-    }
-
-    // ==========================================
-    // 5. Motor de Cupones (Turistas)
-    // ==========================================
-    foreach (['/v1/cupones', '/api/v1/cupones'] as $uri) {
-        $router->post($uri, [CuponesController::class, 'emitir'], [JwtAuthMiddleware::class]);
-    }
-    foreach (['/v1/mis-cupones', '/api/v1/mis-cupones'] as $uri) {
-        $router->get($uri, [CuponesController::class, 'misCupones'], [JwtAuthMiddleware::class]);
-    }
-    foreach (['/v1/cupones/:codigo', '/api/v1/cupones/:codigo'] as $uri) {
-        $router->get($uri, [CuponesController::class, 'show']);
-    }
-
-    // ==========================================
-    // 6. Validación y Canje en Mostrador (Comercio)
-    // ==========================================
-    foreach (['/v1/canjes/validar', '/api/v1/canjes/validar'] as $uri) {
-        $router->post($uri, [CanjesController::class, 'validar'], [JwtAuthMiddleware::class]);
-    }
-    foreach (['/v1/canjes/confirmar', '/api/v1/canjes/confirmar'] as $uri) {
-        $router->post($uri, [CanjesController::class, 'confirmar'], [JwtAuthMiddleware::class]);
-    }
-
-    // ==========================================
-    // 7. Gestión Comercial (Encargados de Comercios)
-    // ==========================================
-    foreach (['/v1/comercio/promociones', '/api/v1/comercio/promociones'] as $uri) {
-        $router->get($uri, [ComercioPromocionesController::class, 'index'], [JwtAuthMiddleware::class]);
-        $router->post($uri, [ComercioPromocionesController::class, 'create'], [JwtAuthMiddleware::class]);
-    }
-    foreach (['/v1/comercio/promociones/:id', '/api/v1/comercio/promociones/:id'] as $uri) {
-        $router->put($uri, [ComercioPromocionesController::class, 'update'], [JwtAuthMiddleware::class]);
-    }
-    foreach (['/v1/comercio/historial-canjes', '/api/v1/comercio/historial-canjes'] as $uri) {
-        $router->get($uri, [ComercioPromocionesController::class, 'historialCanjes'], [JwtAuthMiddleware::class]);
-    }
-    foreach (['/v1/comercio/metricas', '/api/v1/comercio/metricas'] as $uri) {
-        $router->get($uri, [ComercioPromocionesController::class, 'metricas'], [JwtAuthMiddleware::class]);
-    }
-
-    // ==========================================
-    // 8. Encuestas de Perfil Turístico (Observatorio)
-    // ==========================================
-    foreach (['/v1/encuestas', '/api/v1/encuestas'] as $uri) {
-        $router->post($uri, [EncuestasController::class, 'guardar']);
-    }
-
-    // ==========================================
-    // 9. Administración y Fiscalización (Ente)
-    // ==========================================
-    foreach (['/v1/admin/promociones/pendientes', '/api/v1/admin/promociones/pendientes'] as $uri) {
-        $router->get($uri, [AdminController::class, 'promocionesPendientes'], [JwtAuthMiddleware::class]);
-    }
-    foreach (['/v1/admin/promociones/:id/aprobar', '/api/v1/admin/promociones/:id/aprobar'] as $uri) {
-        $router->post($uri, [AdminController::class, 'aprobarPromocion'], [JwtAuthMiddleware::class]);
-    }
-    foreach (['/v1/admin/promociones/:id/rechazar', '/api/v1/admin/promociones/:id/rechazar'] as $uri) {
-        $router->post($uri, [AdminController::class, 'rechazarPromocion'], [JwtAuthMiddleware::class]);
-    }
-    foreach (['/v1/admin/prestadores', '/api/v1/admin/prestadores'] as $uri) {
-        $router->get($uri, [AdminController::class, 'prestadores'], [JwtAuthMiddleware::class]);
-    }
-    foreach (['/v1/admin/metricas-globales', '/api/v1/admin/metricas-globales'] as $uri) {
-        $router->get($uri, [AdminController::class, 'metricasGlobales'], [JwtAuthMiddleware::class]);
-    }
-
-    // ==========================================
-    // 10. Pipeline y Despacho
-    // ==========================================
+    // 4. Pipeline y Despacho
     $pipeline = new Pipeline([
         new CorsMiddleware(),
         new ErrorHandlerMiddleware(),
