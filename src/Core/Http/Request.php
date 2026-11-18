@@ -37,6 +37,9 @@ final readonly class Request
     public function getPath(): string
     {
         $path = (string) parse_url($this->uri, PHP_URL_PATH);
+        if ($this->basePath !== '' && str_starts_with($path, $this->basePath)) {
+            $path = substr($path, strlen($this->basePath));
+        }
         return '/' . ltrim($path, '/');
     }
 
@@ -158,6 +161,14 @@ final readonly class Request
         $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
         $uri = $_SERVER['REQUEST_URI'] ?? '/';
         $basePath = (string) Env::get('BASE_PATH', '');
+
+        // Detección automática del subdirectorio en servidores compartidos (ej: /waykipromo/api)
+        if ($basePath === '' && isset($_SERVER['SCRIPT_NAME'])) {
+            $scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
+            if ($scriptDir !== '' && $scriptDir !== '/') {
+                $basePath = $scriptDir;
+            }
+        }
 
         $headers = [];
         foreach ($_SERVER as $key => $value) {
