@@ -92,9 +92,9 @@ use App\Middleware\FileLoggerMiddleware;
 use App\Routes\ApiRoutes;
 
 try {
-    // 1. Cargar variables de entorno desde .env
-    Env::load($projectRoot . '/.env');
+    // 1. Cargar variables de entorno desde .env (__DIR__ para cPanel desplegado, $projectRoot para desarrollo)
     Env::load(__DIR__ . '/.env');
+    Env::load($projectRoot . '/.env');
 
     // 2. Inicializar Contenedor DI
     $container = new Container();

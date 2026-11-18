@@ -42,10 +42,10 @@ class Env
                 $value = substr($value, 1, -1);
             }
 
-            if (!array_key_exists($name, $_ENV)) {
-                $_ENV[$name] = $value;
-                putenv("{$name}={$value}");
-            }
+            // Poblar $_ENV, $_SERVER y putenv para máxima compatibilidad con configuraciones de cPanel
+            $_ENV[$name] = $value;
+            $_SERVER[$name] = $value;
+            putenv("{$name}={$value}");
         }
     }
 
