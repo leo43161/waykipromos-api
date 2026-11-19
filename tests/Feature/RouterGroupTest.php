@@ -35,7 +35,7 @@ class RouterGroupTest extends TestCase
 
     public function testGroupPrefixesRegisterExpectedRoutes(): void
     {
-        foreach (['/health', '/api/health', '/v1/health', '/api/v1/health'] as $path) {
+        foreach (['/health', '/salud', '/api/health', '/api/salud', '/v1/health', '/v1/salud', '/api/v1/health', '/api/v1/salud'] as $path) {
             $request = Request::create('GET', $path);
             $response = $this->pipeline->handle($request);
 

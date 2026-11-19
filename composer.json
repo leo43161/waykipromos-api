@@ -1,6 +1,6 @@
 {
     "name": "turismo/api-waykipromo",
-    "description": "API REST BFF de Wayki Promo (TuCupón) desarrollada en PHP 8.4+ Puro bajo Clean Architecture",
+    "description": "API REST BFF de WaykiPromos desarrollada en PHP 8.4+ Puro bajo Clean Architecture",
     "type": "project",
     "license": "MIT",
     "require": {

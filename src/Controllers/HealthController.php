@@ -34,11 +34,19 @@ class HealthController
         return Response::json([
             'ok' => $isOk,
             'data' => [
-                'service' => 'API REST Wayki Promo (TuCupón)',
-                'version' => '1.0.0',
-                'status'  => $isOk ? 'healthy' : 'degraded',
-                'php'     => PHP_VERSION,
-                'time'    => $nowTucuman,
+                'servicio' => 'API REST WaykiPromos',
+                'service'  => 'API REST WaykiPromos',
+                'version'  => '1.0.0',
+                'estado'   => $isOk ? 'operativo' : 'degradado',
+                'status'   => $isOk ? 'healthy' : 'degraded',
+                'php'      => PHP_VERSION,
+                'hora'     => $nowTucuman,
+                'time'     => $nowTucuman,
+                'base_de_datos' => [
+                    'esquema' => Env::get('DB_NAME', 'huakipromo'),
+                    'estado'  => $dbStatus === 'connected' ? 'conectada' : 'desconectada',
+                    'error'   => $dbError,
+                ],
                 'database' => [
                     'schema' => Env::get('DB_NAME', 'huakipromo'),
                     'status' => $dbStatus,

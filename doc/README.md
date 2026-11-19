@@ -1,4 +1,4 @@
-# Documentación Técnica: API Wayki Promo (TuCupón)
+# Documentación Técnica: API WaykiPromos
 
 Backend REST for Frontend (BFF) desarrollado para la plataforma de beneficios turísticos del **Ente Autárquico Tucumán Turismo**.  
 Implementado en **PHP 8.4+ / 8.5 Puro**, bajo principios de **Clean Architecture**, alta concurrencia, cero dependencias pesadas de frameworks en producción y persistencia mediante procedimientos almacenados en MySQL (`huakipromo`).

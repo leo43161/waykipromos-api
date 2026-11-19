@@ -25,7 +25,9 @@ class ApiRoutes
         // 3. Módulos bajo prefijo unificado /v1 y /api/v1
         foreach (['/v1', '/api/v1'] as $prefix) {
             $router->group($prefix, function (Router $groupRouter): void {
-                $groupRouter->get('/health', [HealthController::class, 'check']);
+                foreach (['/salud', '/health', '/status'] as $healthUri) {
+                    $groupRouter->get($healthUri, [HealthController::class, 'check']);
+                }
 
                 AuthRoutes::register($groupRouter);
                 TuristaRoutes::register($groupRouter);

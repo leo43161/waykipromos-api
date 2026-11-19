@@ -41,7 +41,8 @@ class RouterAndHealthTest extends TestCase
         $this->assertIsArray($body);
         $this->assertArrayHasKey('ok', $body);
         $this->assertArrayHasKey('data', $body);
-        $this->assertSame('API REST Wayki Promo (TuCupón)', $body['data']['service']);
+        $this->assertSame('API REST WaykiPromos', $body['data']['service']);
+        $this->assertSame('API REST WaykiPromos', $body['data']['servicio']);
     }
 
     public function testNonExistentRouteThrowsNotFoundException(): void
