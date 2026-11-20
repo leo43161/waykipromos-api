@@ -29,6 +29,7 @@ class TuristaRoutes
 
         // 3. Cupones del Turista
         $router->post('/cupones', [CuponesController::class, 'emitir'], [JwtAuthMiddleware::class]);
+        $router->post('/promociones/:id/canjear', [CuponesController::class, 'emitir'], [JwtAuthMiddleware::class]);
         $router->get('/mis-cupones', [CuponesController::class, 'misCupones'], [JwtAuthMiddleware::class]);
         $router->get('/cupones/:codigo', [CuponesController::class, 'show'], [JwtAuthMiddleware::class]);
 

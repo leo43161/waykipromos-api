@@ -88,10 +88,16 @@ $turistaId = (int) $user['turistas_id'];
 
 La API define 5 perfiles con privilegios estrictos:
 
-| Rol | Ámbito | Acciones Permitidas |
-| :--- | :--- | :--- |
-| `turista` | Público autenticado | Guardar cupones, ver su cuponera, generar QR y responder encuestas. |
-| `empleado` | Comercio (Mostrador) | Validar y confirmar canjes exclusivamente para su `comercio_id`. |
-| `encargado` | Comercio (Gestión) | Crear promociones, pausar/activar y ver métricas de su local. |
-| `admin_ente` | Ente Tucumán Turismo | Fiscalizar y aprobar/rechazar promociones, auditar comercios. |
-| `superadmin` | Sistema / TI | Gestión global de roles de usuario, auditoría y catálogos. |
+| Funcionalidad / Caso de Uso | Turista | Empleado Mostrador | Encargado Comercio | Admin Ente (EATT) | Superadmin |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Autenticación con Google GIS (CU-04)** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Explorar Catálogo Post-Login (CU-01, CU-02)** | ✅ *(Con Bearer)* | ❌ | ❌ | ✅ | ✅ |
+| **Guardar Cupón en su Perfil (CU-03)** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Consultar Billetera / Perfil de Cupones** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Validar Cupón en Mostrador (CU-09)** | ❌ | ✅ | ✅ | ❌ | ✅ |
+| **Confirmar Canje Presencial (CU-10)** | ❌ | ✅ | ✅ | ❌ | ✅ |
+| **Crear y Modificar Ofertas (CU-06)** | ❌ | ❌ | ✅ | ❌ | ✅ |
+| **Fiscalizar Ofertas: Aprobar / Rechazar (CU-07)** | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Padrón y Autopublicar Comercios (CU-05, CU-08)** | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Gestión de Usuarios y Roles RBAC (CU-12)** | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **Políticas Globales y Configuración** | ❌ | ❌ | ❌ | ❌ | ✅ |

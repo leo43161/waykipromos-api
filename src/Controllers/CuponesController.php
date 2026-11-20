@@ -8,6 +8,7 @@ use App\Core\Http\Request;
 use App\Core\Http\Response;
 use App\Database\StoredProcedureCaller;
 use App\Domain\Exceptions\ConflictException;
+use App\Domain\Exceptions\ForbiddenException;
 use App\Domain\Exceptions\NotFoundException;
 use App\Domain\Exceptions\UnauthorizedException;
 use App\Domain\Exceptions\ValidationException;
@@ -19,14 +20,19 @@ class CuponesController
     ) {}
 
     /**
-     * POST /api/v1/cupones
-     * Emisión digital de cupón con código y QR único para el turista autenticado.
+     * POST /api/v1/cupones (alias: POST /api/v1/promociones/:id/canjear)
+     * Emisión digital y guardado del cupón en el perfil del turista autenticado.
      */
-    public function emitir(Request $request): Response
+    public function emitir(Request $request, array $params = []): Response
     {
         $user = $request->getAttribute('user');
         if ($user === null) {
             throw new UnauthorizedException('Debe iniciar sesión para obtener un cupón.', 'AUTENTICACION_REQUERIDA');
+        }
+
+        $rol = (string) ($user['rol'] ?? '');
+        if (!in_array($rol, ['turista', 'superadmin'], true)) {
+            throw new ForbiddenException('Solo los usuarios con rol turista pueden guardar cupones en su perfil.', 'SOLO_TURISTAS');
         }
 
         $turistaId = (int) ($user['turistas_id'] ?? 0);
@@ -35,10 +41,26 @@ class CuponesController
         }
 
         $body = $request->getParsedBody();
-        $promocionId = (int) ($body['promocion_id'] ?? 0);
+        $promocionId = (int) ($body['promocion_id'] ?? $params['id'] ?? $request->getAttribute('id') ?? 0);
 
         if ($promocionId <= 0) {
             throw new ValidationException('El parámetro promocion_id es obligatorio', ['promocion_id' => 'Requerido']);
+        }
+
+        // Límite máximo de cupones activos en perfil (Directiva EATT: máx 5 cupones simultáneos)
+        $cuponesTurista = $this->sp->call('sp_cupones_listar_por_turista', [$turistaId]);
+        $ahoraTimestamp = time();
+        $activos = array_filter($cuponesTurista, function (array $c) use ($ahoraTimestamp): bool {
+            $estado = strtoupper((string) ($c['estado'] ?? ''));
+            $vence = strtotime((string) ($c['vence_en'] ?? ''));
+            return $estado === 'EMITIDO' && ($vence === false || $vence > $ahoraTimestamp);
+        });
+
+        if (count($activos) >= 5) {
+            throw new ConflictException(
+                'Has alcanzado el límite máximo de 5 cupones activos guardados en tu perfil. Utiliza o espera el vencimiento de tus cupones antes de solicitar uno nuevo.',
+                'LIMITE_CUPONES_ALCANZADO'
+            );
         }
 
         // 1. Obtener datos de la promoción y validar disponibilidad
@@ -65,12 +87,28 @@ class CuponesController
             ]);
         }
 
-        // 3. Generar código y hash QR únicos
-        $codigo = 'WP-2026-' . strtoupper(bin2hex(random_bytes(3)));
+        // 3. Generar código alfanumérico y hash QR únicos
+        $circuitoPrefix = 'CAL';
+        if (!empty($promo['circuito_nombre'])) {
+            $limpio = preg_replace('/[^A-Za-z]/', '', (string) $promo['circuito_nombre']);
+            if (strlen($limpio) >= 3) {
+                $circuitoPrefix = strtoupper(substr($limpio, 0, 3));
+            }
+        }
+        $codigo = 'WYK-' . $circuitoPrefix . '-' . rand(1000, 9999);
         $qrHash = hash('sha256', $codigo . microtime(true) . bin2hex(random_bytes(8)));
-        $venceEn = (string) ($promo['fecha_fin'] ?? date('Y-m-d', strtotime('+30 days'))) . ' 23:59:59';
 
-        // 4. Crear cupón atómicamente
+        // 4. Vigencia oficial EATT: 14 días (o fecha_fin de la promoción si vence antes)
+        $limite14dias = date('Y-m-d H:i:s', strtotime('+14 days'));
+        $venceEn = $limite14dias;
+        if (!empty($promo['fecha_fin'])) {
+            $fechaFinPromo = (string) $promo['fecha_fin'] . ' 23:59:59';
+            if (strtotime($fechaFinPromo) < strtotime($limite14dias)) {
+                $venceEn = $fechaFinPromo;
+            }
+        }
+
+        // 5. Crear cupón atómicamente
         $nuevoId = $this->sp->callWithOut('sp_cupones_crear', [
             $codigo,
             $qrHash,
@@ -80,15 +118,25 @@ class CuponesController
         ]);
 
         $cuponId = (int) $nuevoId;
+        $comercioNombre = (string) ($promo['comercio_nombre'] ?? $promo['nombre_fantasia'] ?? $promo['comercio'] ?? 'Comercio Adherido');
+        $circuitoNombre = (string) ($promo['circuito_nombre'] ?? $promo['circuito'] ?? 'Tucumán');
+        $tituloOferta = (string) ($promo['titulo'] ?? '');
 
         return Response::ok([
-            'cupon_id'     => $cuponId,
-            'codigo'       => $codigo,
-            'qr_hash'      => $qrHash,
-            'promocion_id' => $promocionId,
-            'titulo'       => $promo['titulo'] ?? '',
-            'vence_en'     => $venceEn,
-            'estado'       => 'EMITIDO',
+            'cupon_id'      => $cuponId,
+            'codigo_cupon'  => $codigo,
+            'codigo'        => $codigo, // retrocompatibilidad
+            'qr_hash'       => $qrHash,
+            'promocion_id'  => $promocionId,
+            'titulo_oferta' => $tituloOferta,
+            'titulo'        => $tituloOferta, // retrocompatibilidad
+            'comercio'      => $comercioNombre,
+            'circuito'      => $circuitoNombre,
+            'turistas_id'   => $turistaId,
+            'estado'        => 'EMITIDO',
+            'emitido_en'    => gmdate('Y-m-d\TH:i:s\Z'),
+            'vence_en'      => gmdate('Y-m-d\TH:i:s\Z', strtotime($venceEn)),
+            'mensaje'       => '¡Cupón guardado con éxito en tu perfil! Preséntalo en el mostrador del prestador para obtener el beneficio.',
         ], null, 201);
     }
 

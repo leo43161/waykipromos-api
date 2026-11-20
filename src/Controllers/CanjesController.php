@@ -30,8 +30,13 @@ class CanjesController
             throw new UnauthorizedException('Usuario no autenticado.');
         }
 
+        $rol = (string) ($user['rol'] ?? '');
+        if (!in_array($rol, ['empleado', 'encargado', 'superadmin'], true)) {
+            throw new ForbiddenException('Solo el personal de mostrador o comercio puede validar cupones.', 'ROL_NO_AUTORIZADO');
+        }
+
         $comercioId = (int) ($user['comercio_id'] ?? 0);
-        $esAdmin = in_array((string) ($user['rol'] ?? ''), ['admin_ente', 'superadmin'], true);
+        $esAdmin = in_array($rol, ['superadmin'], true);
 
         $body = $request->getParsedBody();
         $codigo = trim((string) ($body['codigo'] ?? ''));
@@ -102,9 +107,14 @@ class CanjesController
             throw new UnauthorizedException('Usuario no autenticado.');
         }
 
+        $rol = (string) ($user['rol'] ?? '');
+        if (!in_array($rol, ['empleado', 'encargado', 'superadmin'], true)) {
+            throw new ForbiddenException('Solo el personal de mostrador o comercio puede confirmar canjes.', 'ROL_NO_AUTORIZADO');
+        }
+
         $usuarioId  = (int) ($user['usuario_id'] ?? 0);
         $comercioId = (int) ($user['comercio_id'] ?? 0);
-        $esAdmin    = in_array((string) ($user['rol'] ?? ''), ['admin_ente', 'superadmin'], true);
+        $esAdmin    = in_array($rol, ['superadmin'], true);
 
         $body = $request->getParsedBody();
         $cuponId = (int) ($body['cupon_id'] ?? 0);

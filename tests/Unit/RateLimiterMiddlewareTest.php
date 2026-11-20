@@ -16,6 +16,8 @@ class RateLimiterMiddlewareTest extends TestCase
 
     protected function setUp(): void
     {
+        $_ENV['RATE_LIMIT_ENABLED'] = 'true';
+        putenv('RATE_LIMIT_ENABLED=true');
         $this->tempDir = sys_get_temp_dir() . '/test_waykipromos_rl_' . uniqid();
         mkdir($this->tempDir, 0777, true);
     }
