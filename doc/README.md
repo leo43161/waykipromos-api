@@ -12,6 +12,7 @@ Implementado en **PHP 8.4+ / 8.5 Puro**, bajo principios de **Clean Architecture
 | 🏗️ [Arquitectura y Estructura](ARQUITECTURA.md) | Principios de diseño, ciclo de vida de la petición, Container DI, Router modular y StoredProcedureCaller. |
 | 🔐 [Autenticación y Seguridad JWT](AUTENTICACION_Y_JWT.md) | Validación federada con Google OAuth, credenciales comerciales, emisión de tokens HS256 y Middleware RBAC. |
 | 📋 [Endpoints y Trazabilidad](ENDPOINTS_Y_TRAZABILIDAD.md) | Matriz completa de los 15 Casos de Uso (CU-01 a CU-15), contratos REST BFF y llamadas a procedimientos `sp_*`. |
+| ⚡ [Auditoría y Resiliencia](AUDITORIA_Y_RESILIENCIA.md) | Auditoría de concurrencia, puntos fuertes, factores a monitorear y optimizaciones anti-colapso. |
 | 🛠️ [Guía para Desarrolladores](GUIA_DESARROLLO.md) | Cómo crear controladores, registrar nuevas rutas modulares, testing con PHPUnit y smoke tests. |
 
 ---

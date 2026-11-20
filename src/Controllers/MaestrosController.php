@@ -29,7 +29,7 @@ class MaestrosController
                 ['categorias_comercio_id' => 5, 'nombre' => 'Enoturismo y Bodegas', 'icono' => '🍷', 'activo' => 1],
             ];
         }
-        return Response::ok($rows);
+        return Response::ok($rows)->withCache(3600);
     }
 
     /**
@@ -47,7 +47,7 @@ class MaestrosController
                 ['circuitosturisticos_id' => 5, 'nombre' => 'Sur Tucumano', 'descripcion' => 'Concepción, Monteros, Aguilares, Famaillá', 'icono' => '🌄', 'activo' => 1],
             ];
         }
-        return Response::ok($rows);
+        return Response::ok($rows)->withCache(3600);
     }
 
     /**
@@ -56,7 +56,7 @@ class MaestrosController
     public function modalidades(Request $request): Response
     {
         $rows = $this->sp->call('sp_modalidades_descuento_obtener', [0]);
-        return Response::ok($rows);
+        return Response::ok($rows)->withCache(3600);
     }
 
     /**
@@ -69,6 +69,6 @@ class MaestrosController
             ? $this->sp->call('sp_localidades_listar_por_circuito', [$circuitoId])
             : $this->sp->call('sp_localidades_obtener', [0]);
 
-        return Response::ok($rows);
+        return Response::ok($rows)->withCache(3600);
     }
 }

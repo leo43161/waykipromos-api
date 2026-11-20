@@ -4,6 +4,18 @@ Registro de sesiones de trabajo. Lo más nuevo arriba. Formato: fecha, qué se h
 
 ---
 
+## 2026-11-20 — Resiliencia, concurrencia, rate limiting y optimización de I/O
+
+**Hecho**
+- Implementación de `RateLimiterMiddleware` (120 req/min por IP, headers estándar `X-RateLimit-*`, respuesta 429 con `Retry-After`).
+- Optimización de `FileLoggerMiddleware`: eliminación de `LOCK_EX` para evitar contención de disco en alta concurrencia, rotación diaria de logs (`app-YYYY-MM-DD.log`) y soporte para `LOG_ENABLED=false`.
+- Caché HTTP en `MaestrosController`: agregado de cabeceras `Cache-Control: public, max-age=3600` y `ETag` (método `withCache` en `Response.php`) para `/categorias`, `/circuitos`, `/modalidades`, `/localidades`.
+- Compresión Gzip activada en `public/.htaccess` (`mod_deflate` para `application/json` y texto).
+- Detección resiliente de saturación de MySQL (errores 1203/1040) en `ErrorHandlerMiddleware` respondiendo `503 Service Unavailable` con `Retry-After: 3`.
+- Suite de pruebas unitarias ampliada (20/20 tests pasando con 122 aserciones).
+
+---
+
 ## 2026-11-18 — Conexión a BD, estructura base y autenticación Google / JWT
 
 **Hecho**

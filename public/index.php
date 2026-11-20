@@ -87,6 +87,7 @@ use App\Core\Router\Router;
 use App\Middleware\CorsMiddleware;
 use App\Middleware\ErrorHandlerMiddleware;
 use App\Middleware\FileLoggerMiddleware;
+use App\Middleware\RateLimiterMiddleware;
 use App\Routes\ApiRoutes;
 
 try {
@@ -123,6 +124,7 @@ try {
     $pipeline = new Pipeline([
         new CorsMiddleware(),
         new ErrorHandlerMiddleware(),
+        new RateLimiterMiddleware(),
         new FileLoggerMiddleware(),
     ], $router);
 

@@ -58,6 +58,20 @@ final readonly class Response
     }
 
     /**
+     * Adds client/CDN HTTP caching headers (Cache-Control and ETag).
+     */
+    public function withCache(int $maxAgeSeconds = 3600, int $staleWhileRevalidate = 86400): self
+    {
+        $headers = $this->headers;
+        $headers['Cache-Control'] = "public, max-age={$maxAgeSeconds}, stale-while-revalidate={$staleWhileRevalidate}";
+        if ($this->body !== '') {
+            $headers['ETag'] = 'W/"' . md5($this->body) . '"';
+        }
+
+        return new self($this->statusCode, $this->body, $headers);
+    }
+
+    /**
      * @param array<string, mixed> $data
      * @param array<string, string> $headers
      */

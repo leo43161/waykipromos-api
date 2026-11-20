@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Middleware;
 
+use App\Config\Env;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
 use App\Core\Middleware\MiddlewareInterface;
@@ -14,12 +15,14 @@ class FileLoggerMiddleware implements MiddlewareInterface
 {
     public function __construct(
         private ?string $logPath = null
-    ) {
-        $this->logPath ??= dirname(__DIR__, 2) . '/storage/logs/app.log';
-    }
+    ) {}
 
     public function process(Request $request, RequestHandlerInterface $handler): Response
     {
+        if (Env::get('LOG_ENABLED', true) === false) {
+            return $handler->handle($request);
+        }
+
         $start = microtime(true);
 
         try {
@@ -49,13 +52,15 @@ class FileLoggerMiddleware implements MiddlewareInterface
         $logLine = "[{$timestamp}] {$method} {$fullUrl} - Status: {$statusCode} - Duration: {$ms}ms - UA: {$ua}\n";
 
         try {
-            $dir = dirname($this->logPath);
+            $targetPath = $this->logPath ?? (dirname(__DIR__, 2) . '/storage/logs/app-' . gmdate('Y-m-d') . '.log');
+            $dir = dirname($targetPath);
             if (!is_dir($dir)) {
                 mkdir($dir, 0755, true);
             }
-            file_put_contents($this->logPath, $logLine, FILE_APPEND | LOCK_EX);
+            // En POSIX, escrituras atómicas de append < 4KB no requieren LOCK_EX, evitando contención en alta concurrencia
+            file_put_contents($targetPath, $logLine, FILE_APPEND);
         } catch (Throwable) {
-            // Ignore logging errors to keep response flowing
+            // Ignorar errores de logging para no frenar la respuesta al cliente
         }
     }
 }

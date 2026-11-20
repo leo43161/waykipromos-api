@@ -20,6 +20,24 @@ class ErrorHandlerMiddleware implements MiddlewareInterface
         } catch (HttpException $e) {
             return Response::json($e->getPayload(), $e->getStatusCode());
         } catch (Throwable $e) {
+            $msg = $e->getMessage();
+
+            // Detección resiliente de saturación de conexiones en MySQL (Error 1203 y 1040)
+            if (
+                str_contains($msg, 'max_user_connections') ||
+                str_contains($msg, 'Too many connections') ||
+                str_contains($msg, '1203') ||
+                str_contains($msg, '1040')
+            ) {
+                return Response::error(
+                    'SERVICIO_ALTA_DEMANDA',
+                    'El servicio se encuentra con alta concurrencia momentánea. Por favor aguarda unos segundos.',
+                    ['reintentar_en_segundos' => 3],
+                    503,
+                    ['Retry-After' => '3']
+                );
+            }
+
             error_log(sprintf(
                 '[Unhandled Exception] %s: %s in %s:%d' . PHP_EOL . '%s',
                 get_class($e),
