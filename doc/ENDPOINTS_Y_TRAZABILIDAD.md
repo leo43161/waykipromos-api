@@ -106,6 +106,7 @@ Mapeo exhaustivo entre la **Infraestructura Base**, los **Casos de Uso (CU-01 al
 | **CU-07** (Bandeja Fiscalización) | `/api/v1/admin/promociones/pendientes`<br>*(alias: `/api/v1/admin/aprobaciones`)* | `GET` | `admin_ente` | `CALL sp_promociones_listar_gestion(0, 0, 'PENDIENTE')` | Bandeja institucional de ofertas que requieren aprobación provincial. |
 | **CU-07** (Aprobar Oferta) | `/api/v1/admin/promociones/:id/aprobar` | `POST` | `admin_ente` | `CALL sp_promociones_actualizar_estado(?, 'PUBLICADA')` | Publica formalmente el beneficio en la cartelera de WaykiPromos. |
 | **CU-07** (Rechazar Oferta) | `/api/v1/admin/promociones/:id/rechazar` | `POST` | `admin_ente` | `CALL sp_promociones_actualizar_estado(?, 'RECHAZADA')` | Rechaza la oferta informando motivos de corrección al prestador. |
+| **CU-08** (Autopublicar Prestador) | `/api/v1/admin/comercios/:id/autopublicar` | `PATCH` | `admin_ente` | `UPDATE comercios SET autopublicar = ? WHERE comercio_id = ?` | Habilita o desactiva la publicación directa de ofertas sin aprobación previa. |
 
 ---
 
@@ -122,9 +123,13 @@ Mapeo exhaustivo entre la **Infraestructura Base**, los **Casos de Uso (CU-01 al
 
 ## 6. Módulo Seguridad, Analítica y Auditoría
 
-| Caso de Uso | Endpoint | Método | Rol Mínimo | Procedimiento Almacenado | Descripción Técnica |
+| Caso de Uso | Endpoint | Método | Rol Mínimo | Procedimiento Almacenado / SQL | Descripción Técnica |
 | :--- | :--- | :---: | :---: | :--- | :--- |
-| **CU-12** (Usuarios RBAC) | `/api/v1/admin/usuarios` | `GET` | `superadmin` | `CALL sp_usuarios_obtener(0)` | Nómina de usuarios y comercios vinculados. *(En desarrollo)* |
-| **CU-12** (Editar Rol) | `/api/v1/admin/usuarios/:id/rol` | `PATCH` | `superadmin` | `CALL sp_usuario_roles_eliminar(?)`<br>`CALL sp_usuario_roles_crear(?, ?, ?, @id)` | Asignación de roles (`turista`, `empleado`, `encargado`, `admin_ente`, `superadmin`). *(En desarrollo)* |
-| **CU-13** (Métricas Globales) | `/api/v1/admin/metricas-globales`<br>*(alias: `/api/v1/admin/resumen`)* | `GET` | `admin_ente` | `CALL sp_admin_metricas_provinciales()` | Estadísticas provinciales: total de turistas, cupones emitidos vs canjeados y conversión. |
-| **CU-14** (Auditoría Global) | `/api/v1/admin/auditoria`<br>*(alias: `/api/v1/admin/movimientos`)* | `GET` | `admin_ente` | `CALL sp_canjes_obtener(0)` | Bitácora inmutable de eventos sensibles para fiscalización pública. *(En desarrollo)* |
+| **CU-12** (Listar Usuarios RBAC) | `/api/v1/admin/usuarios` | `GET` | `admin_ente` / `superadmin` | `CALL sp_usuarios_obtener(0)` | Nómina completa de operadores, encargados y auditores con roles y comercios asociados. |
+| **CU-12** (Crear Usuario Personal) | `/api/v1/admin/usuarios` | `POST` | `superadmin` | `CALL sp_usuarios_crear(...)` | Alta de nuevo personal de comercio o Ente con contraseña encriptada (BCrypt) y rol asignado. |
+| **CU-12** (Reasignar Rol RBAC) | `/api/v1/admin/usuarios/:id/rol` | `PATCH` | `superadmin` | `CALL sp_usuario_roles_asignar(?, ?)` | Modificación inmediata del rol contractual (`superadmin`, `admin_ente`, `encargado`, `empleado`). |
+| **CU-12** (Bloquear / Activar Usuario) | `/api/v1/admin/usuarios/:id/estado` | `PATCH` | `superadmin` | `CALL sp_usuarios_actualizar_estado(?, ?)` | Habilita o revoca el acceso del usuario cambiando su estado entre `ACTIVO` y `BLOQUEADO`. |
+| **CU-13** (Métricas Globales) | `/api/v1/admin/metricas-globales`<br>*(alias: `/api/v1/admin/resumen`)* | `GET` | `admin_ente` | `CALL sp_admin_metricas_provinciales()` | Estadísticas provinciales: total de prestadores, turistas, cupones emitidos vs canjeados y conversión. |
+| **CU-14** (Auditoría Global) | `/api/v1/admin/auditoria`<br>*(alias: `/api/v1/admin/movimientos`)* | `GET` | `admin_ente` | `CALL sp_canjes_obtener(0)` | Bitácora inmutable de eventos sensibles para fiscalización pública. |
+| **Políticas** (Consultar Configuración) | `/api/v1/admin/configuracion` | `GET` | `admin_ente` / `superadmin` | Memoria / Tabla `configuracion` | Consulta de vigencia de cupones, límites por turista y parámetros del Observatorio (CU-15). |
+| **Políticas** (Guardar Configuración) | `/api/v1/admin/configuracion` | `PUT` | `superadmin` | Memoria / Tabla `configuracion` | Actualización de reglas globales del sistema, caducidades y sesiones. |
