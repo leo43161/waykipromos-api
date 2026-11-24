@@ -13,10 +13,12 @@ class ComercioRoutes
 {
     public static function register(Router $router): void
     {
+        $mostrador = [JwtAuthMiddleware::class, new \App\Middleware\RoleMiddleware(['empleado', 'encargado'])];
+
         // 1. Validación y Canje en Mostrador
-        $router->post('/canjes/validar', [CanjesController::class, 'validar'], [JwtAuthMiddleware::class]);
-        $router->post('/canjes/confirmar', [CanjesController::class, 'confirmar'], [JwtAuthMiddleware::class]);
-        $router->post('/canjes/verificar', [CanjesController::class, 'validar'], [JwtAuthMiddleware::class]);
+        $router->post('/canjes/validar', [CanjesController::class, 'validar'], $mostrador);
+        $router->post('/canjes/confirmar', [CanjesController::class, 'confirmar'], $mostrador);
+        $router->post('/canjes/verificar', [CanjesController::class, 'validar'], $mostrador);
 
         // 2. Gestión Comercial de Promociones
         $router->get('/comercio/promociones', [ComercioPromocionesController::class, 'index'], [JwtAuthMiddleware::class]);

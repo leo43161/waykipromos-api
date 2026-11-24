@@ -15,17 +15,15 @@ class TuristaRoutes
 {
     public static function register(Router $router): void
     {
-        // 1. Catálogos Maestros (requiere autenticación)
-        $router->get('/categorias', [MaestrosController::class, 'categorias'], [JwtAuthMiddleware::class]);
-        $router->get('/circuitos', [MaestrosController::class, 'circuitos'], [JwtAuthMiddleware::class]);
-        $router->get('/modalidades', [MaestrosController::class, 'modalidades'], [JwtAuthMiddleware::class]);
-        $router->get('/localidades', [MaestrosController::class, 'localidades'], [JwtAuthMiddleware::class]);
-
-        // 2. Catálogo de Ofertas / Promociones (requiere autenticación)
-        $router->get('/ofertas', [OfertasController::class, 'index'], [JwtAuthMiddleware::class]);
-        $router->get('/ofertas/:id', [OfertasController::class, 'show'], [JwtAuthMiddleware::class]);
-        $router->get('/promociones', [OfertasController::class, 'index'], [JwtAuthMiddleware::class]);
-        $router->get('/promociones/:id', [OfertasController::class, 'show'], [JwtAuthMiddleware::class]);
+        // 1. Catálogos Maestros y Promociones (Públicos según contrato v1)
+        $router->get('/categorias', [MaestrosController::class, 'categorias']);
+        $router->get('/circuitos', [MaestrosController::class, 'circuitos']);
+        $router->get('/modalidades', [MaestrosController::class, 'modalidades']);
+        $router->get('/localidades', [MaestrosController::class, 'localidades']);
+        $router->get('/ofertas', [\App\Controllers\CatalogoController::class, 'listar']);
+        $router->get('/ofertas/:id', [\App\Controllers\CatalogoController::class, 'ficha']);
+        $router->get('/promociones', [\App\Controllers\CatalogoController::class, 'listar']);
+        $router->get('/promociones/:id', [\App\Controllers\CatalogoController::class, 'ficha']);
 
         // 3. Cupones del Turista
         $router->post('/cupones', [CuponesController::class, 'emitir'], [JwtAuthMiddleware::class]);

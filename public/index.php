@@ -79,6 +79,8 @@ if ($autoloadPath === null) {
 
 require_once $autoloadPath;
 
+date_default_timezone_set('America/Argentina/Tucuman');
+
 use App\Config\Env;
 use App\Core\Container\Container;
 use App\Core\Http\Request;

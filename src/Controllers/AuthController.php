@@ -88,7 +88,10 @@ class AuthController
         }
 
         // 2. Generar token JWT para la sesión del turista
-        $secret = (string) Env::get('JWT_SECRET', 'secret_key_waykipromo_2026_at_least_32_chars');
+        $secret = (string) Env::get('JWT_SECRET', '');
+        if (strlen($secret) < 32) {
+            throw new \App\Domain\Exceptions\InternalErrorException('Configuración de seguridad JWT incompleta en el servidor.');
+        }
         $payload = [
             'sub'         => 'tur_' . $turistaId,
             'turistas_id' => $turistaId,
@@ -162,7 +165,10 @@ class AuthController
         }
 
         // 5. Emitir JWT
-        $secret = (string) Env::get('JWT_SECRET', 'secret_key_waykipromo_2026_at_least_32_chars');
+        $secret = (string) Env::get('JWT_SECRET', '');
+        if (strlen($secret) < 32) {
+            throw new \App\Domain\Exceptions\InternalErrorException('Configuración de seguridad JWT incompleta en el servidor.');
+        }
         $payload = [
             'sub'         => 'usr_' . $usuarioId,
             'usuario_id'  => $usuarioId,
@@ -171,7 +177,7 @@ class AuthController
             'rol'         => $rolNombre,
             'comercio_id' => $comercioId,
             'iat'         => time(),
-            'exp'         => time() + (86400 * 7), // 7 días de sesión
+            'exp'         => time() + (12 * 3600), // 12 horas según contrato
         ];
 
         $token = $this->jwt->encode($payload, $secret);

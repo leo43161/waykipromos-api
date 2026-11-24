@@ -98,12 +98,14 @@ class StoredProcedureCaller
         $code = (int) ($e->errorInfo[1] ?? $e->getCode());
         $message = $e->getMessage();
 
+        error_log('[SQL Error] ' . $message);
+
         // 1062 = Duplicate entry (Unique key violation)
         if ($code === 1062) {
             throw new ConflictException(
                 'El registro o código ya existe y genera duplicidad en el sistema.',
                 'REGISTRO_DUPLICADO',
-                ['sql_error' => $message],
+                null,
                 $e
             );
         }
@@ -112,7 +114,7 @@ class StoredProcedureCaller
         if ($code === 1452) {
             throw new ValidationException(
                 'La entidad referenciada no existe o es inválida.',
-                ['sql_error' => $message],
+                null,
                 'CLAVE_FORANEA_INVALIDA',
                 $e
             );

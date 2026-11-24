@@ -101,13 +101,13 @@ class RouterGroupTest extends TestCase
         $resAdmin = $this->pipeline->handle($reqAdmin);
         $this->assertSame(401, $resAdmin->getStatusCode());
 
-        // 3. Catálogos y promociones ahora también protegidos
-        $reqOfertas = Request::create('GET', '/api/v1/ofertas');
-        $resOfertas = $this->pipeline->handle($reqOfertas);
-        $this->assertSame(401, $resOfertas->getStatusCode());
-
+        // 3. Catálogos y promociones públicos según contrato
         $reqCategorias = Request::create('GET', '/v1/categorias');
         $resCategorias = $this->pipeline->handle($reqCategorias);
-        $this->assertSame(401, $resCategorias->getStatusCode());
+        $this->assertSame(200, $resCategorias->getStatusCode());
+
+        $reqCupones = Request::create('GET', '/v1/turista/cupones');
+        $resCupones = $this->pipeline->handle($reqCupones);
+        $this->assertSame(401, $resCupones->getStatusCode());
     }
 }

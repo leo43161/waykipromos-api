@@ -42,7 +42,7 @@ class JwtAuthMiddleware implements MiddlewareInterface
         try {
             $user = $this->jwtService->decode($token, $this->secret);
         } catch (Throwable $e) {
-            throw new ForbiddenException('Token inválido, manipulado o expirado', 'TOKEN_INVALIDO');
+            throw new UnauthorizedException('Tu sesión terminó. Ingresá de nuevo.', 'SESION_INVALIDA');
         }
 
         self::$authenticatedUser = $user;

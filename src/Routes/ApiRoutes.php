@@ -29,6 +29,10 @@ class ApiRoutes
                     $groupRouter->get($healthUri, [HealthController::class, 'check']);
                 }
 
+                // Contrato Oficial de la API v1 (46 endpoints canónicos)
+                ContratoRoutes::register($groupRouter);
+
+                // Rutas de compatibilidad histórica
                 AuthRoutes::register($groupRouter);
                 TuristaRoutes::register($groupRouter);
                 ComercioRoutes::register($groupRouter);

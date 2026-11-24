@@ -64,7 +64,7 @@ class TuristaCicloVidaTest extends TestCase
 
     public function testAccesoSinAutenticacionResponde401TokenRequerido(): void
     {
-        foreach (['/api/v1/circuitos', '/api/v1/promociones', '/api/v1/localidades'] as $uri) {
+        foreach (['/api/v1/mis-cupones', '/api/v1/turista/cupones', '/api/v1/turista/perfil'] as $uri) {
             $req = Request::create('GET', $uri);
             $res = $this->pipeline->handle($req);
 
