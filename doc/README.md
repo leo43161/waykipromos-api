@@ -10,6 +10,7 @@ Implementado en **PHP 8.4+ / 8.5 Puro**, bajo principios de **Clean Architecture
 | Documento | Descripción |
 | :--- | :--- |
 | 📋 [Endpoints y Trazabilidad](ENDPOINTS_Y_TRAZABILIDAD.md) | Especificación exhaustiva de los **46 endpoints canónicos (Contrato v1)**, DTOs, roles RBAC y procedimientos `sp_*`. |
+| 🗄️ [Matriz SPs huakipromo](MATRIZ_SP_EXISTENTES_HUAKIPROMO.md) | Mapeo detallado de los **124 procedimientos almacenados existentes** en la base de datos contra el contrato v1. |
 | 🏗️ [Arquitectura y Estructura](ARQUITECTURA.md) | Principios de diseño, ciclo de vida de la petición, Container DI, Router modular y StoredProcedureCaller. |
 | 🔐 [Autenticación y Seguridad JWT](AUTENTICACION_Y_JWT.md) | Validación federada con Google OAuth, credenciales del personal, emisión de tokens HS256 y Middleware RBAC. |
 | ⚡ [Auditoría y Resiliencia](AUDITORIA_Y_RESILIENCIA.md) | Auditoría de concurrencia, puntos fuertes, factores a monitorear y optimizaciones anti-colapso. |
