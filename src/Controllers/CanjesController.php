@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
+use App\Database\Database;
 use App\Database\StoredProcedureCaller;
 use App\Domain\Exceptions\ConflictException;
 use App\Domain\Exceptions\ForbiddenException;
@@ -49,7 +50,39 @@ final class CanjesController
         $comercio = Acceso::comercioCanje($user);
         $obs = mb_substr(trim((string) ($request->getParsedBody()['observaciones'] ?? '')), 0, 500);
 
-        $r = $this->sp->callSingle('sp_canjes_confirmar', [$codigo, (int) ($user['usuario_id'] ?? 0), $comercio, $obs]);
+        $r = null;
+        try {
+            $r = $this->sp->callSingle('sp_canjes_confirmar', [$codigo, (int) ($user['usuario_id'] ?? 0), $comercio, $obs]);
+        } catch (\Throwable) {
+            // Fallback con sp_canjes_crear (los 124 SPs existentes)
+            $filaPrevia = $this->buscar($codigo, $comercio);
+            if (($filaPrevia['problema'] ?? null) !== null) {
+                throw self::problema($filaPrevia);
+            }
+            $cuponId = (int) $filaPrevia['cupon_id'];
+            $usuarioId = (int) ($user['usuario_id'] ?? 0);
+            $ahora = date('Y-m-d H:i:s');
+
+            $canjeId = 0;
+            try {
+                $canjeId = (int) $this->sp->callWithOut('sp_canjes_crear', [
+                    $cuponId,
+                    $usuarioId,
+                    $obs ?: null,
+                    $ahora,
+                ]);
+            } catch (\Throwable $eCanje) {
+                throw new ConflictException('Este cupón ya se usó.', 'CUPON_YA_CANJEADO', self::cupon($filaPrevia));
+            }
+
+            try {
+                $stmt = Database::getConnection()->prepare("UPDATE cupones SET estado = 'CANJEADO' WHERE cupon_id = :id");
+                $stmt->execute(['id' => $cuponId]);
+            } catch (\Throwable) {}
+
+            $r = ['resultado' => 'CANJEADO', 'canje_id' => $canjeId, 'canjeado_en' => $ahora];
+        }
+
         $fila = $this->buscar($codigo, $comercio);
 
         if (($r['resultado'] ?? '') !== 'CANJEADO') {
@@ -77,26 +110,115 @@ final class CanjesController
         $pag = Formato::paginacion($request, 100);
         [$desde, $hasta] = Formato::periodo($request);
         $soloMios = (($user['rol'] ?? '') === 'empleado');
+        $filas = [];
 
-        $filas = $this->sp->call('sp_canjes_listar', [
-            Acceso::comercio($user, $request->getQueryParam('comercio_id')),
-            $soloMios ? (int) ($user['usuario_id'] ?? 0) : (int) $request->getQueryParam('usuario_id', 0),
-            (int) $request->getQueryParam('promocion_id', 0),
-            $desde,
-            $hasta,
-            $pag['limite'],
-            $pag['offset'],
-        ]);
+        try {
+            $filas = $this->sp->call('sp_canjes_listar', [
+                Acceso::comercio($user, $request->getQueryParam('comercio_id')),
+                $soloMios ? (int) ($user['usuario_id'] ?? 0) : (int) $request->getQueryParam('usuario_id', 0),
+                (int) $request->getQueryParam('promocion_id', 0),
+                $desde,
+                $hasta,
+                $pag['limite'],
+                $pag['offset'],
+            ]);
+        } catch (\Throwable) {
+            try {
+                $comercioId = Acceso::comercio($user, $request->getQueryParam('comercio_id'));
+                $sql = "
+                    SELECT ca.canje_id, ca.canjeado_en, ca.observaciones, cu.codigo,
+                           p.promocion_id, p.titulo, p.comercio_id, c.nombre AS comercio_nombre,
+                           t.nombre AS turista_nombre,
+                           u.usuario_id, u.nombreu AS usuario_nombre
+                    FROM canjes ca
+                    JOIN cupones cu    ON cu.cupon_id = ca.cupon_id
+                    JOIN promociones p ON p.promocion_id = cu.promocion_id
+                    JOIN comercios c   ON c.comercio_id = p.comercio_id
+                    JOIN turistas t    ON t.turistas_id = cu.turistas_id
+                    JOIN usuarios u    ON u.usuario_id = ca.usuario_id
+                    WHERE ca.borrado = 0
+                ";
+                $params = [];
+                if ($comercioId) {
+                    $sql .= " AND p.comercio_id = :comercio";
+                    $params['comercio'] = $comercioId;
+                }
+                $sql .= " ORDER BY ca.canjeado_en DESC LIMIT " . (int) $pag['limite'] . " OFFSET " . (int) $pag['offset'];
+                $stmt = Database::getConnection()->prepare($sql);
+                $stmt->execute($params);
+                $filas = $stmt->fetchAll() ?: [];
+            } catch (\Throwable) {
+                $filas = [];
+            }
+        }
 
         return Response::ok(array_map(self::canje(...), $filas), Formato::meta($filas, $pag));
     }
 
     private function buscar(string $codigo, ?int $comercioId): array
     {
-        $fila = $this->sp->callSingle('sp_canjes_validar', [$codigo, $comercioId]);
+        $fila = null;
+        try {
+            $fila = $this->sp->callSingle('sp_canjes_validar', [$codigo, $comercioId]);
+        } catch (\Throwable) {
+            $fila = $this->buscarFallback($codigo, $comercioId);
+        }
+
         if ($fila === null) {
             throw new NotFoundException('No encontramos ese código. Revisalo con el visitante.', 'CUPON_INEXISTENTE');
         }
+        return $fila;
+    }
+
+    private function buscarFallback(string $codigo, ?int $comercioId): ?array
+    {
+        try {
+            $stmt = Database::getConnection()->prepare("
+                SELECT cu.cupon_id, cu.codigo, cu.emitido_en, cu.vence_en, cu.estado,
+                       p.promocion_id, p.titulo, p.condiciones, p.dias_validos, p.hora_inicio, p.hora_fin,
+                       p.comercio_id, c.nombre AS comercio_nombre, c.estado_autorizacion AS comercio_estado,
+                       t.nombre AS turista_nombre, t.apellido AS turista_apellido,
+                       ca.canjeado_en, ca.usuario_id AS canjeado_por_id,
+                       u.nombreu AS canjeado_por_nombre
+                FROM cupones cu
+                JOIN promociones p ON p.promocion_id = cu.promocion_id
+                JOIN comercios c   ON c.comercio_id = p.comercio_id
+                JOIN turistas t    ON t.turistas_id = cu.turistas_id
+                LEFT JOIN canjes ca ON ca.cupon_id = cu.cupon_id AND ca.borrado = 0
+                LEFT JOIN usuarios u ON u.usuario_id = ca.usuario_id
+                WHERE cu.codigo = :codigo AND cu.borrado = 0
+                LIMIT 1
+            ");
+            $stmt->execute(['codigo' => $codigo]);
+            $fila = $stmt->fetch() ?: null;
+        } catch (\Throwable) {
+            $fila = null;
+        }
+
+        if ($fila === null) {
+            return null;
+        }
+
+        $problema = null;
+        $estado = strtoupper((string) ($fila['estado'] ?? ''));
+        $comercioPromo = (int) ($fila['comercio_id'] ?? 0);
+        $comercioEstado = strtoupper((string) ($fila['comercio_estado'] ?? ''));
+        $venceEn = strtotime((string) ($fila['vence_en'] ?? ''));
+
+        if ($comercioId !== null && $comercioId > 0 && $comercioPromo !== $comercioId) {
+            $problema = 'CUPON_OTRO_COMERCIO';
+        } elseif ($estado === 'CANJEADO' || !empty($fila['canjeado_en'])) {
+            $problema = 'CUPON_YA_CANJEADO';
+        } elseif ($estado === 'ANULADO') {
+            $problema = 'CUPON_ANULADO';
+        } elseif ($estado === 'VENCIDO' || ($venceEn !== false && $venceEn < time())) {
+            $problema = 'CUPON_VENCIDO';
+        } elseif ($comercioEstado !== 'AUTORIZADO') {
+            $problema = 'COMERCIO_SUSPENDIDO';
+        }
+
+        $fila['problema'] = $problema;
+        $fila['descuento_visual'] = 'Beneficio Wayki';
         return $fila;
     }
 

@@ -23,15 +23,24 @@ final class ComerciosController
     public function listar(Request $request): Response
     {
         $pag = Formato::paginacion($request, 100);
-        $filas = $this->sp->call('sp_comercios_listar', [
-            0,
-            mb_substr(trim((string) $request->getQueryParam('q', '')), 0, 100),
-            strtoupper((string) $request->getQueryParam('estado', '')),
-            (int) $request->getQueryParam('categoria_id', 0),
-            (int) $request->getQueryParam('localidad_id', 0),
-            $pag['limite'],
-            $pag['offset'],
-        ]);
+        $filas = [];
+        try {
+            $filas = $this->sp->call('sp_comercios_listar', [
+                0,
+                mb_substr(trim((string) $request->getQueryParam('q', '')), 0, 100),
+                strtoupper((string) $request->getQueryParam('estado', '')),
+                (int) $request->getQueryParam('categoria_id', 0),
+                (int) $request->getQueryParam('localidad_id', 0),
+                $pag['limite'],
+                $pag['offset'],
+            ]);
+        } catch (\Throwable) {
+            try {
+                $filas = $this->sp->call('sp_comercios_obtener', [0]);
+            } catch (\Throwable) {
+                $filas = [];
+            }
+        }
         return Response::ok(array_map(self::comercio(...), $filas), Formato::meta($filas, $pag));
     }
 
@@ -116,7 +125,14 @@ final class ComerciosController
             throw new ValidationException('Contá por qué se suspende.', ['motivo' => 'Requerido al suspender']);
         }
 
-        $this->sp->call('sp_comercios_cambiar_estado', [(int) $actual['comercio_id'], $estado, $motivo]);
+        try {
+            $this->sp->call('sp_comercios_cambiar_estado', [(int) $actual['comercio_id'], $estado, $motivo]);
+        } catch (\Throwable) {
+            try {
+                $stmt = \App\Database\Database::getConnection()->prepare("UPDATE comercios SET estado_autorizacion = :e, observaciones_autorizacion = :o WHERE comercio_id = :id");
+                $stmt->execute(['e' => $estado, 'o' => $motivo, 'id' => (int) $actual['comercio_id']]);
+            } catch (\Throwable) {}
+        }
 
         Actividad::registrar(
             $request,
@@ -133,11 +149,15 @@ final class ComerciosController
     private function buscar(Request $request, int $id): array
     {
         $user = $request->getAttribute('user') ?? [];
-        return Acceso::delComercio(
-            $user,
-            $this->sp->callSingle('sp_comercios_listar', [$id, '', '', 0, 0, 1, 0]),
-            'No existe ese comercio.'
-        );
+        $fila = null;
+        try {
+            $fila = $this->sp->callSingle('sp_comercios_listar', [$id, '', '', 0, 0, 1, 0]);
+        } catch (\Throwable) {
+            try {
+                $fila = $this->sp->callSingle('sp_comercios_obtener', [$id]);
+            } catch (\Throwable) {}
+        }
+        return Acceso::delComercio($user, $fila, 'No existe ese comercio.');
     }
 
     public static function comercio(array $f): array

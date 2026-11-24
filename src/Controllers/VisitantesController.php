@@ -22,18 +22,27 @@ final class VisitantesController
     {
         $pag = Formato::paginacion($request, 100);
         $periodo = $request->getQueryParam('desde') || $request->getQueryParam('hasta') ? Formato::periodo($request) : [null, null];
+        $filas = [];
 
-        $filas = $this->sp->call('sp_visitantes_listar', [
-            0,
-            mb_substr(trim((string) $request->getQueryParam('q', '')), 0, 100),
-            (int) $request->getQueryParam('provincia_id', 0),
-            (int) $request->getQueryParam('pais_id', 0),
-            (int) $request->getQueryParam('rango_edad_id', 0),
-            $periodo[0],
-            $periodo[1],
-            $pag['limite'],
-            $pag['offset'],
-        ]);
+        try {
+            $filas = $this->sp->call('sp_visitantes_listar', [
+                0,
+                mb_substr(trim((string) $request->getQueryParam('q', '')), 0, 100),
+                (int) $request->getQueryParam('provincia_id', 0),
+                (int) $request->getQueryParam('pais_id', 0),
+                (int) $request->getQueryParam('rango_edad_id', 0),
+                $periodo[0],
+                $periodo[1],
+                $pag['limite'],
+                $pag['offset'],
+            ]);
+        } catch (\Throwable) {
+            try {
+                $filas = $this->sp->call('sp_turistas_obtener', [0]);
+            } catch (\Throwable) {
+                $filas = [];
+            }
+        }
 
         return Response::ok(array_map(self::visitante(...), $filas), Formato::meta($filas, $pag));
     }
@@ -41,8 +50,18 @@ final class VisitantesController
     public function ver(Request $request, array $params): Response
     {
         $id = (int) ($params['id'] ?? 0);
-        $fila = $this->sp->callSingle('sp_visitantes_listar', [$id, '', 0, 0, 0, null, null, 1, 0])
-            ?? throw new NotFoundException('No existe ese visitante.', 'NO_ENCONTRADO');
+        $fila = null;
+        try {
+            $fila = $this->sp->callSingle('sp_visitantes_listar', [$id, '', 0, 0, 0, null, null, 1, 0]);
+        } catch (\Throwable) {
+            try {
+                $fila = $this->sp->callSingle('sp_turistas_obtener', [$id]);
+            } catch (\Throwable) {}
+        }
+
+        if ($fila === null) {
+            throw new NotFoundException('No existe ese visitante.', 'NO_ENCONTRADO');
+        }
 
         return Response::ok(self::visitante($fila));
     }

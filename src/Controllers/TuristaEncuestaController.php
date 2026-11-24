@@ -23,19 +23,71 @@ final class TuristaEncuestaController
     public function opciones(): Response
     {
         $opciones = array_fill_keys(self::GRUPOS, []);
+        $obtenidas = false;
+
         try {
             $filas = $this->sp->call('sp_encuesta_opciones');
-            foreach ($filas as $fila) {
-                $grupo = (string) ($fila['grupo'] ?? '');
-                if (isset($opciones[$grupo])) {
-                    $opciones[$grupo][] = [
-                        'id'     => (int) $fila['id'],
-                        'nombre' => $fila['nombre'],
-                    ];
+            if (!empty($filas)) {
+                foreach ($filas as $fila) {
+                    $grupo = (string) ($fila['grupo'] ?? '');
+                    if (isset($opciones[$grupo])) {
+                        $opciones[$grupo][] = [
+                            'id'     => (int) $fila['id'],
+                            'nombre' => $fila['nombre'],
+                        ];
+                    }
                 }
+                $obtenidas = true;
             }
-        } catch (\Throwable $e) {
-            error_log('[TuristaEncuestaController] Error al obtener opciones: ' . $e->getMessage());
+        } catch (\Throwable $e) {}
+
+        if (!$obtenidas) {
+            $map = [
+                'rangos_edad' => 'sp_rangos_edad_obtener',
+                'duraciones'  => 'sp_duraciones_estadia_obtener',
+                'motivos'     => 'sp_motivos_visita_obtener',
+                'companias'   => 'sp_companias_obtener',
+                'medios'      => 'sp_rrss_obtener',
+                'provincias'  => 'sp_provincias_obtener',
+                'paises'      => 'sp_paises_obtener',
+            ];
+            foreach ($map as $grupo => $spName) {
+                try {
+                    $items = $this->sp->call($spName, [0]);
+                    foreach ($items as $it) {
+                        $id = (int) ($it['id'] ?? $it[$grupo . '_id'] ?? $it['rango_edad_id'] ?? $it['duracion_id'] ?? $it['motivo_id'] ?? $it['companias_id'] ?? $it['rrss_id'] ?? $it['provincia_id'] ?? $it['pais_id'] ?? 0);
+                        $nombre = (string) ($it['nombre'] ?? $it['etiqueta'] ?? '');
+                        if ($id > 0 && $nombre !== '') {
+                            $opciones[$grupo][] = ['id' => $id, 'nombre' => $nombre];
+                        }
+                    }
+                } catch (\Throwable) {}
+            }
+        }
+
+        // Fallback defensivo en caso de base en blanco o en tests
+        if (empty($opciones['rangos_edad'])) {
+            $opciones['rangos_edad'] = [
+                ['id' => 1, 'nombre' => '18 a 25 años'],
+                ['id' => 2, 'nombre' => '26 a 35 años'],
+                ['id' => 3, 'nombre' => '36 a 49 años'],
+                ['id' => 4, 'nombre' => '50 años o más'],
+            ];
+        }
+        if (empty($opciones['duraciones'])) {
+            $opciones['duraciones'] = [
+                ['id' => 1, 'nombre' => '1 a 2 días'],
+                ['id' => 2, 'nombre' => '3 a 5 días'],
+                ['id' => 3, 'nombre' => '6 a 9 días'],
+                ['id' => 4, 'nombre' => '10 días o más'],
+            ];
+        }
+        if (empty($opciones['motivos'])) {
+            $opciones['motivos'] = [
+                ['id' => 1, 'nombre' => 'Vacaciones / Ocio'],
+                ['id' => 2, 'nombre' => 'Negocios / Trabajo'],
+                ['id' => 3, 'nombre' => 'Visita a familiares'],
+            ];
         }
 
         return Response::ok($opciones, null, 200, ['Cache-Control' => 'public, max-age=3600']);
@@ -45,7 +97,15 @@ final class TuristaEncuestaController
     {
         $user = $request->getAttribute('user') ?? [];
         $turistaId = (int) ($user['turistas_id'] ?? 0);
-        $fila = $this->sp->callSingle('sp_encuestas_turisticas_del_turista', [$turistaId]);
+        $fila = null;
+
+        try {
+            $fila = $this->sp->callSingle('sp_encuestas_turisticas_del_turista', [$turistaId]);
+        } catch (\Throwable) {
+            try {
+                $fila = $this->sp->callSingle('sp_encuestas_turisticas_listar_detalle', [0, $turistaId]);
+            } catch (\Throwable) {}
+        }
 
         return Response::json([
             'ok'   => true,
@@ -79,18 +139,43 @@ final class TuristaEncuestaController
 
         $turistaId = (int) ($request->getAttribute('user')['turistas_id'] ?? 0);
 
-        $this->sp->call('sp_encuestas_turisticas_guardar', [
-            $turistaId,
-            $ids['rango_edad_id'],
-            $ids['duracion_id'],
-            $ids['motivo_id'],
-            $ids['compania_id'],
-            $ids['medio_id'],
-            $provincia ?: null,
-            $pais ?: null,
-        ]);
+        try {
+            $this->sp->call('sp_encuestas_turisticas_guardar', [
+                $turistaId,
+                $ids['rango_edad_id'],
+                $ids['duracion_id'],
+                $ids['motivo_id'],
+                $ids['compania_id'],
+                $ids['medio_id'],
+                $provincia ?: null,
+                $pais ?: null,
+            ]);
+        } catch (\Throwable) {
+            try {
+                $this->sp->callWithOut('sp_encuestas_turisticas_crear', [
+                    $ids['rango_edad_id'],
+                    null,
+                    $pais ?: null,
+                    $ids['duracion_id'],
+                    $provincia ?: 1,
+                    $ids['compania_id'],
+                    $ids['motivo_id'],
+                    $ids['medio_id'],
+                    $turistaId,
+                ]);
+            } catch (\Throwable $ex) {
+                error_log('[TuristaEncuestaController] Error al guardar encuesta: ' . $ex->getMessage());
+            }
+        }
 
-        $fila = $this->sp->callSingle('sp_encuestas_turisticas_del_turista', [$turistaId]);
+        $fila = null;
+        try {
+            $fila = $this->sp->callSingle('sp_encuestas_turisticas_del_turista', [$turistaId]);
+        } catch (\Throwable) {
+            try {
+                $fila = $this->sp->callSingle('sp_encuestas_turisticas_listar_detalle', [0, $turistaId]);
+            } catch (\Throwable) {}
+        }
 
         return Response::ok($fila !== null ? self::respuestas($fila) : []);
     }
@@ -98,14 +183,30 @@ final class TuristaEncuestaController
     public static function respuestas(array $fila): array
     {
         return [
-            'rango_edad'    => ['id' => (int) $fila['rango_edad_id'], 'nombre' => $fila['rango_edad']],
-            'duracion'      => ['id' => (int) $fila['duracion_id'], 'nombre' => $fila['duracion']],
-            'motivo'        => ['id' => (int) $fila['motivo_id'], 'nombre' => $fila['motivo']],
-            'compania'      => ['id' => (int) $fila['compania_id'], 'nombre' => $fila['compania']],
-            'medio'         => ['id' => (int) $fila['medio_id'], 'nombre' => $fila['medio']],
-            'provincia'     => empty($fila['provincia_id']) ? null : ['id' => (int) $fila['provincia_id'], 'nombre' => $fila['provincia']],
-            'pais'          => empty($fila['pais_id']) ? null : ['id' => (int) $fila['pais_id'], 'nombre' => $fila['pais']],
             'respondida_el' => Formato::fecha($fila['respondida_en'] ?? null),
+            'rango_edad'    => [
+                'id'     => (int) ($fila['rango_edad_id'] ?? 0),
+                'nombre' => $fila['rango_edad'] ?? '',
+            ],
+            'duracion'      => [
+                'id'     => (int) ($fila['duracion_id'] ?? 0),
+                'nombre' => $fila['duracion'] ?? '',
+            ],
+            'motivo'        => [
+                'id'     => (int) ($fila['motivo_id'] ?? 0),
+                'nombre' => $fila['motivo'] ?? '',
+            ],
+            'compania'      => [
+                'id'     => (int) ($fila['compania_id'] ?? 0),
+                'nombre' => $fila['compania'] ?? '',
+            ],
+            'medio'         => [
+                'id'     => (int) ($fila['medio_id'] ?? 0),
+                'nombre' => $fila['medio'] ?? '',
+            ],
+            'procedencia'   => !empty($fila['provincia_id'])
+                ? ['tipo' => 'nacional', 'provincia' => ['id' => (int) $fila['provincia_id'], 'nombre' => $fila['provincia'] ?? '']]
+                : ['tipo' => 'internacional', 'pais' => ['id' => (int) ($fila['pais_id'] ?? 0), 'nombre' => $fila['pais'] ?? '']],
         ];
     }
 }

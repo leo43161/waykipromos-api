@@ -57,7 +57,16 @@ final class LoginController
             // Ignorar si tabla de intentos aún no existe en prueba
         }
 
-        $u = $this->sp->callSingle('sp_usuarios_obtener_por_nombreu', [$usuario]);
+        $u = null;
+        try {
+            $u = $this->sp->callSingle('sp_usuarios_obtener_por_nombreu', [$usuario]);
+        } catch (\Throwable) {
+            try {
+                $stmt = \App\Database\Database::getConnection()->prepare("SELECT * FROM usuarios WHERE (nombreu = :u OR email = :u) AND borrado = 0 LIMIT 1");
+                $stmt->execute(['u' => $usuario]);
+                $u = $stmt->fetch() ?: null;
+            } catch (\Throwable) {}
+        }
         $claveOk = password_verify($password, (string) ($u['password_hash'] ?? self::HASH_FALSO));
 
         if ($u === null || !$claveOk) {
@@ -85,7 +94,24 @@ final class LoginController
             } catch (\Throwable) {}
         }
 
-        $sesion = $this->sp->callSingle('sp_usuarios_sesion', [$usuarioId]);
+        $sesion = null;
+        try {
+            $sesion = $this->sp->callSingle('sp_usuarios_sesion', [$usuarioId]);
+        } catch (\Throwable) {
+            try {
+                $stmt = \App\Database\Database::getConnection()->prepare("
+                    SELECT u.*, r.nombre AS rol, c.nombre AS comercio_nombre, c.estado_autorizacion AS comercio_estado
+                    FROM usuarios u
+                    LEFT JOIN usuario_roles ur ON ur.usuario_id = u.usuario_id AND ur.borrado = 0
+                    LEFT JOIN roles r ON r.rol_id = ur.rol_id AND r.borrado = 0
+                    LEFT JOIN comercios c ON c.comercio_id = u.comercio_id AND c.borrado = 0
+                    WHERE u.usuario_id = :id
+                    LIMIT 1
+                ");
+                $stmt->execute(['id' => $usuarioId]);
+                $sesion = $stmt->fetch() ?: null;
+            } catch (\Throwable) {}
+        }
         $expira = time() + self::HORAS_SESION * 3600;
         $secret = (string) Env::get('JWT_SECRET', '');
 
@@ -108,7 +134,24 @@ final class LoginController
     public function sesion(Request $request): Response
     {
         $usuarioId = (int) ($request->getAttribute('user')['usuario_id'] ?? 0);
-        $sesion = $this->sp->callSingle('sp_usuarios_sesion', [$usuarioId]);
+        $sesion = null;
+        try {
+            $sesion = $this->sp->callSingle('sp_usuarios_sesion', [$usuarioId]);
+        } catch (\Throwable) {
+            try {
+                $stmt = \App\Database\Database::getConnection()->prepare("
+                    SELECT u.*, r.nombre AS rol, c.nombre AS comercio_nombre, c.estado_autorizacion AS comercio_estado
+                    FROM usuarios u
+                    LEFT JOIN usuario_roles ur ON ur.usuario_id = u.usuario_id AND ur.borrado = 0
+                    LEFT JOIN roles r ON r.rol_id = ur.rol_id AND r.borrado = 0
+                    LEFT JOIN comercios c ON c.comercio_id = u.comercio_id AND c.borrado = 0
+                    WHERE u.usuario_id = :id
+                    LIMIT 1
+                ");
+                $stmt->execute(['id' => $usuarioId]);
+                $sesion = $stmt->fetch() ?: null;
+            } catch (\Throwable) {}
+        }
         return Response::ok(self::usuario($sesion));
     }
 
@@ -123,7 +166,24 @@ final class LoginController
         }
 
         $usuarioId = (int) ($request->getAttribute('user')['usuario_id'] ?? 0);
-        $sesion = $this->sp->callSingle('sp_usuarios_sesion', [$usuarioId]);
+        $sesion = null;
+        try {
+            $sesion = $this->sp->callSingle('sp_usuarios_sesion', [$usuarioId]);
+        } catch (\Throwable) {
+            try {
+                $stmt = \App\Database\Database::getConnection()->prepare("
+                    SELECT u.*, r.nombre AS rol, c.nombre AS comercio_nombre, c.estado_autorizacion AS comercio_estado
+                    FROM usuarios u
+                    LEFT JOIN usuario_roles ur ON ur.usuario_id = u.usuario_id AND ur.borrado = 0
+                    LEFT JOIN roles r ON r.rol_id = ur.rol_id AND r.borrado = 0
+                    LEFT JOIN comercios c ON c.comercio_id = u.comercio_id AND c.borrado = 0
+                    WHERE u.usuario_id = :id
+                    LIMIT 1
+                ");
+                $stmt->execute(['id' => $usuarioId]);
+                $sesion = $stmt->fetch() ?: null;
+            } catch (\Throwable) {}
+        }
         $nombreu = (string) ($sesion['nombreu'] ?? '');
         $u = $this->sp->callSingle('sp_usuarios_obtener_por_nombreu', [$nombreu]);
 

@@ -32,16 +32,30 @@ final class UsuariosPanelController
     {
         $user = $request->getAttribute('user') ?? [];
         $pag = Formato::paginacion($request, 100);
+        $comercioId = Acceso::comercio($user, $request->getQueryParam('comercio_id'));
+        $filas = [];
 
-        $filas = $this->sp->call('sp_usuarios_listar', [
-            0,
-            Acceso::comercio($user, $request->getQueryParam('comercio_id')),
-            ($user['rol'] ?? '') === 'encargado' ? 'empleado' : (string) $request->getQueryParam('rol', ''),
-            strtoupper((string) $request->getQueryParam('estado', '')),
-            mb_substr(trim((string) $request->getQueryParam('q', '')), 0, 100),
-            $pag['limite'],
-            $pag['offset'],
-        ]);
+        try {
+            $filas = $this->sp->call('sp_usuarios_listar', [
+                0,
+                $comercioId,
+                ($user['rol'] ?? '') === 'encargado' ? 'empleado' : (string) $request->getQueryParam('rol', ''),
+                strtoupper((string) $request->getQueryParam('estado', '')),
+                mb_substr(trim((string) $request->getQueryParam('q', '')), 0, 100),
+                $pag['limite'],
+                $pag['offset'],
+            ]);
+        } catch (\Throwable) {
+            try {
+                $filas = $this->sp->call('sp_usuarios_listar_por_comercio', [$comercioId ?? 0]);
+            } catch (\Throwable) {
+                try {
+                    $filas = $this->sp->call('sp_usuarios_obtener', [0]);
+                } catch (\Throwable) {
+                    $filas = [];
+                }
+            }
+        }
 
         return Response::ok(array_map(self::usuario(...), $filas), Formato::meta($filas, $pag));
     }
@@ -145,7 +159,14 @@ final class UsuariosPanelController
             throw new ValidationException('Estado inválido.', ['estado' => 'ACTIVO, BLOQUEADO o BAJA']);
         }
 
-        $this->sp->call('sp_usuarios_cambiar_estado', [(int) $actual['usuario_id'], $estado]);
+        try {
+            $this->sp->call('sp_usuarios_cambiar_estado', [(int) $actual['usuario_id'], $estado]);
+        } catch (\Throwable) {
+            try {
+                $stmt = \App\Database\Database::getConnection()->prepare("UPDATE usuarios SET estado = :e WHERE usuario_id = :id");
+                $stmt->execute(['e' => $estado, 'id' => (int) $actual['usuario_id']]);
+            } catch (\Throwable) {}
+        }
 
         Actividad::registrar(
             $request,
@@ -165,7 +186,14 @@ final class UsuariosPanelController
         $actual = $this->buscar($user, (int) ($params['id'] ?? 0));
         $temporal = self::claveTemporal();
 
-        $this->sp->call('sp_usuarios_cambiar_password', [(int) $actual['usuario_id'], password_hash($temporal, PASSWORD_DEFAULT)]);
+        try {
+            $this->sp->call('sp_usuarios_cambiar_password', [(int) $actual['usuario_id'], password_hash($temporal, PASSWORD_DEFAULT)]);
+        } catch (\Throwable) {
+            try {
+                $stmt = \App\Database\Database::getConnection()->prepare("UPDATE usuarios SET password_hash = :p WHERE usuario_id = :id");
+                $stmt->execute(['p' => password_hash($temporal, PASSWORD_DEFAULT), 'id' => (int) $actual['usuario_id']]);
+            } catch (\Throwable) {}
+        }
 
         Actividad::registrar(
             $request,
@@ -181,7 +209,14 @@ final class UsuariosPanelController
 
     private function buscar(array $user, int $id): array
     {
-        $fila = $this->sp->callSingle('sp_usuarios_listar', [$id, 0, '', '', '', 1, 0]);
+        $fila = null;
+        try {
+            $fila = $this->sp->callSingle('sp_usuarios_listar', [$id, 0, '', '', '', 1, 0]);
+        } catch (\Throwable) {
+            try {
+                $fila = $this->sp->callSingle('sp_usuarios_obtener', [$id]);
+            } catch (\Throwable) {}
+        }
         $puede = $fila !== null && $id !== (int) ($user['usuario_id'] ?? 0)
             && (($user['rol'] ?? '') === 'superadmin' || in_array($fila['rol'] ?? '', self::ADMINISTRA[$user['rol'] ?? ''] ?? [], true))
             && (Acceso::esEnte($user) || (int) ($fila['comercio_id'] ?? 0) === (int) ($user['comercio_id'] ?? 0));

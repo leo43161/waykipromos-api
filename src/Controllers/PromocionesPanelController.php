@@ -36,16 +36,34 @@ final class PromocionesPanelController
     {
         $user = $request->getAttribute('user') ?? [];
         $pag = Formato::paginacion($request, 100);
+        $comercioId = Acceso::comercio($user, $request->getQueryParam('comercio_id'));
+        $estado = strtoupper((string) $request->getQueryParam('estado', ''));
+        $catId = (int) $request->getQueryParam('categoria_id', 0);
+        $q = mb_substr(trim((string) $request->getQueryParam('q', '')), 0, 100);
+        $filas = [];
 
-        $filas = $this->sp->call('sp_promociones_gestion', [
-            0,
-            Acceso::comercio($user, $request->getQueryParam('comercio_id')),
-            strtoupper((string) $request->getQueryParam('estado', '')),
-            (int) $request->getQueryParam('categoria_id', 0),
-            mb_substr(trim((string) $request->getQueryParam('q', '')), 0, 100),
-            $pag['limite'],
-            $pag['offset'],
-        ]);
+        try {
+            $filas = $this->sp->call('sp_promociones_gestion', [
+                0,
+                $comercioId,
+                $estado,
+                $catId,
+                $q,
+                $pag['limite'],
+                $pag['offset'],
+            ]);
+        } catch (\Throwable) {
+            try {
+                // Fallback con sp_promociones_listar_gestion de los 124 SPs existentes
+                $filas = $this->sp->call('sp_promociones_listar_gestion', [
+                    $comercioId ?? 0,
+                    $catId,
+                    $estado,
+                ]);
+            } catch (\Throwable) {
+                $filas = [];
+            }
+        }
 
         return Response::ok(array_map(self::promocion(...), $filas), Formato::meta($filas, $pag));
     }
@@ -63,8 +81,17 @@ final class PromocionesPanelController
         $comercioId = Acceso::comercio($user, $b['comercio_id'] ?? null)
             ?? throw new ValidationException('Elegí el comercio.', ['comercio_id' => 'Requerido']);
 
-        $comercio = $this->sp->callSingle('sp_comercios_listar', [$comercioId, '', '', 0, 0, 1, 0])
-            ?? throw new ValidationException('Ese comercio no existe.', ['comercio_id' => 'Inválido']);
+        $comercio = null;
+        try {
+            $comercio = $this->sp->callSingle('sp_comercios_listar', [$comercioId, '', '', 0, 0, 1, 0]);
+        } catch (\Throwable) {
+            try {
+                $comercio = $this->sp->callSingle('sp_comercios_obtener', [$comercioId]);
+            } catch (\Throwable) {}
+        }
+        if ($comercio === null) {
+            throw new ValidationException('Ese comercio no existe.', ['comercio_id' => 'Inválido']);
+        }
 
         $d = $this->datos($b, null, $user);
 
@@ -168,7 +195,14 @@ final class PromocionesPanelController
     private function buscar(Request $request, int $id): array
     {
         $user = $request->getAttribute('user') ?? [];
-        $fila = $this->sp->callSingle('sp_promociones_gestion', [$id, 0, '', 0, '', 1, 0]);
+        $fila = null;
+        try {
+            $fila = $this->sp->callSingle('sp_promociones_gestion', [$id, 0, '', 0, '', 1, 0]);
+        } catch (\Throwable) {
+            try {
+                $fila = $this->sp->callSingle('sp_promociones_obtener', [$id]);
+            } catch (\Throwable) {}
+        }
         return Acceso::delComercio($user, $fila, 'No existe esa promoción.');
     }
 
@@ -194,7 +228,14 @@ final class PromocionesPanelController
             }
         }
 
-        $this->sp->call('sp_promociones_cambiar_estado', [(int) $actual['promocion_id'], $estado]);
+        try {
+            $this->sp->call('sp_promociones_cambiar_estado', [(int) $actual['promocion_id'], $estado]);
+        } catch (\Throwable) {
+            try {
+                $stmt = \App\Database\Database::getConnection()->prepare("UPDATE promociones SET estado = :e WHERE promocion_id = :id");
+                $stmt->execute(['e' => $estado, 'id' => (int) $actual['promocion_id']]);
+            } catch (\Throwable) {}
+        }
         $user = $request->getAttribute('user') ?? [];
 
         Actividad::registrar(

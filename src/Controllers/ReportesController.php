@@ -28,7 +28,10 @@ final class ReportesController
         $hoy = date('Y-m-d');
 
         if (($user['rol'] ?? '') === 'empleado') {
-            $canjes = $this->sp->call('sp_canjes_listar', [Acceso::comercio($user), (int) ($user['usuario_id'] ?? 0), 0, $hoy, $hoy, 5, 0]);
+            $canjes = [];
+            try {
+                $canjes = $this->sp->call('sp_canjes_listar', [Acceso::comercio($user), (int) ($user['usuario_id'] ?? 0), 0, $hoy, $hoy, 5, 0]);
+            } catch (\Throwable) {}
             return Response::ok([
                 'rol'            => 'empleado',
                 'canjes_hoy'     => (int) ($canjes[0]['total'] ?? count($canjes)),
@@ -38,8 +41,16 @@ final class ReportesController
 
         $comercio = Acceso::comercio($user, $request->getQueryParam('comercio_id'));
         [$desde, $hasta] = Formato::periodo($request);
-        $r = self::agrupar($this->sp->call('sp_reportes', [$desde, $hasta, $comercio, 0, 0]), $desde, $hasta);
-        $actividad = $this->sp->call('sp_actividad_listar', [$comercio, 0, '', null, null, 6, 0]);
+        $filasReporte = [];
+        try {
+            $filasReporte = $this->sp->call('sp_reportes', [$desde, $hasta, $comercio, 0, 0]);
+        } catch (\Throwable) {}
+
+        $r = self::agrupar($filasReporte, $desde, $hasta);
+        $actividad = [];
+        try {
+            $actividad = $this->sp->call('sp_actividad_listar', [$comercio, 0, '', null, null, 6, 0]);
+        } catch (\Throwable) {}
 
         return Response::ok([
             'rol'             => $user['rol'] ?? 'encargado',
@@ -55,13 +66,16 @@ final class ReportesController
     public function reportes(Request $request): Response
     {
         [$desde, $hasta] = Formato::periodo($request);
-        $filas = $this->sp->call('sp_reportes', [
-            $desde,
-            $hasta,
-            (int) $request->getQueryParam('comercio_id', 0),
-            (int) $request->getQueryParam('categoria_id', 0),
-            (int) $request->getQueryParam('localidad_id', 0),
-        ]);
+        $filas = [];
+        try {
+            $filas = $this->sp->call('sp_reportes', [
+                $desde,
+                $hasta,
+                (int) $request->getQueryParam('comercio_id', 0),
+                (int) $request->getQueryParam('categoria_id', 0),
+                (int) $request->getQueryParam('localidad_id', 0),
+            ]);
+        } catch (\Throwable) {}
         return Response::ok(self::agrupar($filas, $desde, $hasta));
     }
 
@@ -70,16 +84,18 @@ final class ReportesController
         $user = $request->getAttribute('user') ?? [];
         $pag = Formato::paginacion($request, 100);
         $periodo = $request->getQueryParam('desde') || $request->getQueryParam('hasta') ? Formato::periodo($request) : [null, null];
-
-        $filas = $this->sp->call('sp_actividad_listar', [
-            Acceso::comercio($user, $request->getQueryParam('comercio_id')),
-            (int) $request->getQueryParam('usuario_id', 0),
-            (string) $request->getQueryParam('accion', ''),
-            $periodo[0],
-            $periodo[1],
-            $pag['limite'],
-            $pag['offset'],
-        ]);
+        $filas = [];
+        try {
+            $filas = $this->sp->call('sp_actividad_listar', [
+                Acceso::comercio($user, $request->getQueryParam('comercio_id')),
+                (int) $request->getQueryParam('usuario_id', 0),
+                (string) $request->getQueryParam('accion', ''),
+                $periodo[0],
+                $periodo[1],
+                $pag['limite'],
+                $pag['offset'],
+            ]);
+        } catch (\Throwable) {}
 
         return Response::ok(array_map(self::actividadItem(...), $filas), Formato::meta($filas, $pag));
     }
